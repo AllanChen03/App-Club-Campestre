@@ -1,7 +1,8 @@
 
-import express from 'express';
-import cors from 'cors';
-import pruebaRoutes from './routes/prueba.routes.js';
+const express = require('express');
+const cors = require('cors');
+
+const authRoutes = require('./src/routes/authRoutes');
 
 const app = express();
 
@@ -14,6 +15,6 @@ app.get('/', (req, res) => {
     });
 });
 
-app.use('/api/prueba', pruebaRoutes);
+app.use('/api/auth', authRoutes);
 
-export default app;
+module.exports = app;
