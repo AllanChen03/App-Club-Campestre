@@ -4,9 +4,13 @@ const cors = require('cors');
 
 const authRoutes = require('./src/routes/authRoutes');
 
+const usuariosRoutes = require('./src/routes/usuariosRoutes');
+
 const app = express();
 
-app.use(cors());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173'
+}));
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -16,5 +20,6 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 
 module.exports = app;

@@ -1,8 +1,10 @@
-
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const { supabaseAuth } = require('../config/supabaseAuth');
+const { ErrorHttp } = require('../utils/ErrorHttp');
+const intentosLogin = require('./intentosLogin');
 
-// Registrar un nuevo socio
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
 async function registrarUsuario(datos) {
 
     const {
@@ -16,7 +18,6 @@ async function registrarUsuario(datos) {
         id_tipo_membresia
     } = datos;
 
-    // Crear la cuenta en Supabase Auth
     const { data: authData, error: authError } =
         await supabaseAdmin.auth.admin.createUser({
             email: correo,
@@ -25,12 +26,14 @@ async function registrarUsuario(datos) {
         });
 
     if (authError) {
+        if (/already|registered|exists/i.test(authError.message)) {
+            throw new ErrorHttp(409, 'Ya existe una cuenta con ese correo');
+        }
         throw new Error(authError.message);
     }
 
     const idUsuario = authData.user.id;
 
-    // Registrar los datos del socio, membresía y cargo
     const { data, error } = await supabaseAdmin.rpc(
         'registrar_socio',
         {
@@ -46,7 +49,6 @@ async function registrarUsuario(datos) {
 
     if (error) {
 
-        // Eliminar la cuenta Auth si falla el registro
         const { error: deleteError } =
             await supabaseAdmin.auth.admin.deleteUser(idUsuario);
 
@@ -55,6 +57,10 @@ async function registrarUsuario(datos) {
                 'Error al eliminar usuario de Auth:',
                 deleteError.message
             );
+        }
+
+        if (error.code === '23505' || /duplicate|cedula/i.test(error.message)) {
+            throw new ErrorHttp(409, 'Ya existe una cuenta con esa cédula');
         }
 
         throw new Error(error.message);
@@ -67,10 +73,16 @@ async function registrarUsuario(datos) {
     };
 }
 
-// Iniciar sesión
 async function iniciarSesion(correo, contrasena) {
 
-    // Validar correo y contraseña
+    const hasta = intentosLogin.bloqueadoHasta(correo);
+
+    if (hasta) {
+        throw new ErrorHttp(429,
+            'Hubo demasiados intentos fallidos. Intente de nuevo más tarde',
+            { bloqueado_hasta: hasta.toISOString() });
+    }
+
     const { data, error } =
         await supabaseAuth.auth.signInWithPassword({
             email: correo,
@@ -78,10 +90,19 @@ async function iniciarSesion(correo, contrasena) {
         });
 
     if (error) {
-        throw new Error('Correo o contraseña incorrectos');
+        const bloqueo = intentosLogin.registrarFallo(correo);
+
+        if (bloqueo) {
+            throw new ErrorHttp(429,
+                'Hubo demasiados intentos fallidos. Intente de nuevo más tarde',
+                { bloqueado_hasta: bloqueo.toISOString() });
+        }
+
+        throw new ErrorHttp(401, 'Correo o contraseña incorrectos');
     }
 
-    // Consultar los datos del usuario
+    intentosLogin.limpiar(correo);
+
     const { data: usuario, error: usuarioError } =
         await supabaseAdmin
             .from('usuarios')
@@ -92,7 +113,7 @@ async function iniciarSesion(correo, contrasena) {
                 roles(nombre)
             `)
             .eq('id_usuario', data.user.id)
-            .single();
+            .maybeSingle();
 
     if (usuarioError) {
         console.error(
@@ -104,7 +125,18 @@ async function iniciarSesion(correo, contrasena) {
     }
 
     if (!usuario) {
-        throw new Error('El usuario no existe en la tabla usuarios');
+        await revocarSesion(data.session.access_token);
+        throw new ErrorHttp(403, 'La cuenta no tiene datos de usuario registrados');
+    }
+
+    if (usuario.estado !== 'Activo') {
+        await revocarSesion(data.session.access_token);
+
+        const mensaje = usuario.estado === 'Suspendido'
+            ? 'Su cuenta está suspendida. Comuníquese con la administración del club'
+            : 'Su cuenta no está activa. Si acaba de registrarse, se activará cuando se confirme el pago de su membresía';
+
+        throw new ErrorHttp(403, mensaje, { estado: usuario.estado });
     }
 
     return {
@@ -120,7 +152,112 @@ async function iniciarSesion(correo, contrasena) {
     };
 }
 
+async function revocarSesion(token) {
+    const { error } = await supabaseAdmin.auth.admin.signOut(token, 'local');
+
+    if (error) {
+        console.error('Error al revocar sesión:', error.message);
+    }
+}
+
+async function refrescarSesion(refreshToken) {
+
+    const { data, error } =
+        await supabaseAuth.auth.refreshSession({ refresh_token: refreshToken });
+
+    if (error || !data.session) {
+        throw new ErrorHttp(401, 'La sesión expiró. Inicie sesión de nuevo');
+    }
+
+    return {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token
+    };
+}
+
+async function recuperarContrasena(correo) {
+
+    const { error } =
+        await supabaseAuth.auth.resetPasswordForEmail(correo, {
+            redirectTo: `${FRONTEND_URL}/restablecer-contrasena`
+        });
+
+    if (error) {
+        console.error(
+            'Error al solicitar recuperación:',
+            error.message
+        );
+
+        throw new Error('No se pudo procesar la recuperación');
+    }
+
+    return {
+        mensaje: 'Si el correo está registrado, recibirás un enlace para recuperar tu contraseña'
+    };
+}
+
+async function restablecerContrasena(token, contrasena) {
+
+    const { data, error } = await supabaseAuth.auth.getUser(token);
+
+    if (error || !data.user) {
+        throw new ErrorHttp(401, 'El enlace expiró o no es válido. Solicite uno nuevo');
+    }
+
+    if (!esTokenDeRecuperacion(token)) {
+        throw new ErrorHttp(401, 'El enlace no es de recuperación de contraseña');
+    }
+
+    const { error: updateError } =
+        await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+            password: contrasena
+        });
+
+    if (updateError) {
+        if (/different|same/i.test(updateError.message)) {
+            throw new ErrorHttp(400, 'La nueva contraseña debe ser diferente a la anterior');
+        }
+        throw new Error(updateError.message);
+    }
+
+    await revocarSesion(token);
+
+    return { mensaje: 'Contraseña actualizada correctamente' };
+}
+
+
+function esTokenDeRecuperacion(token) {
+    try {
+        const payload = JSON.parse(
+            Buffer.from(token.split('.')[1], 'base64url').toString('utf8')
+        );
+        return Array.isArray(payload.amr) &&
+            payload.amr.some((m) => m.method === 'recovery' || m.method === 'otp');
+    } catch {
+        return false;
+    }
+}
+
+
+async function listarTiposMembresia() {
+
+    const { data, error } = await supabaseAdmin
+        .from('tipos_membresia')
+        .select('id_tipo_membresia, nombre, descripcion, precio, max_beneficiarios, max_invitados')
+        .order('precio', { ascending: true });
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    return data;
+}
+
 module.exports = {
     registrarUsuario,
-    iniciarSesion
+    iniciarSesion,
+    refrescarSesion,
+    recuperarContrasena,
+    restablecerContrasena,
+    listarTiposMembresia
 };
