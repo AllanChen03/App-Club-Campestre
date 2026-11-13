@@ -9,14 +9,23 @@ import Perfil from './pages/Perfil';
 import Proximamente from './pages/Proximamente';
 import PanelAdmin from './pages/admin/PanelAdmin';
 import Usuarios from './pages/admin/Usuarios';
+import Notificaciones from './components/Notificaciones';
+import Cobros from './components/Cobros';
 import RutaProtegida from './components/RutaProtegida';
 import InicioSegunRol from './components/InicioSegunRol';
 import AppLayout from './components/AppLayout';
 import AdminLayout from './components/AdminLayout';
 import { ROLES_ADMIN, ROL_SOCIO, rolesDeSeccion } from './utils/roles';
+import EstadoCuenta from './components/EstadoCuenta';
+import { leerSesion } from './api/cliente';
 
-// Secciones que corresponden a los módulos de otros integrantes
 const pendiente = (titulo, volver) => <Proximamente titulo={titulo} volver={volver} />;
+
+const VistaEstadoCuenta = () => {
+  const sesion = leerSesion();
+  const idSocio = sesion?.usuario?.id_socio || sesion?.id_socio || 1; 
+  return <EstadoCuenta idSocio={idSocio} />;
+};
 
 export default function App() {
   return (
@@ -36,11 +45,11 @@ export default function App() {
           <Route path="/reservas" element={pendiente('Reservas')} />
           <Route path="/invitados" element={pendiente('Invitados')} />
           <Route path="/membresia" element={pendiente('Membresía')} />
-          <Route path="/estado-cuenta" element={pendiente('Estado de cuenta')} />
+          <Route path="/estado-cuenta" element={<VistaEstadoCuenta />} />
         </Route>
       </Route>
 
-      {/* Administradores: cada sección solo para los roles de utils/roles.js */}
+      {/* Administradores */}
       <Route path="/admin" element={<RutaProtegida roles={ROLES_ADMIN} />}>
         <Route element={<AdminLayout />}>
           <Route index element={<PanelAdmin />} />
@@ -57,17 +66,28 @@ export default function App() {
               element={<Usuarios key="admins" roles={ROLES_ADMIN} titulo="Administradores" descripcion="Cuentas con acceso al panel de administración." />}
             />
           </Route>
+
+          {/* Módulos restantes con "Próximamente" */}
           {[
             ['membresias', 'Membresías'],
             ['instalaciones', 'Instalaciones'],
-            ['invitados', 'Invitados del día'],
-            ['cobros', 'Cobros'],
-            ['notificaciones', 'Notificaciones']
+            ['invitados', 'Invitados del día']
           ].map(([ruta, titulo]) => (
             <Route key={ruta} element={<RutaProtegida roles={rolesDeSeccion(ruta)} />}>
               <Route path={ruta} element={pendiente(titulo, '/admin')} />
             </Route>
           ))}
+
+          {/* Módulo de Cobros conectado al componente real */}
+          <Route element={<RutaProtegida roles={rolesDeSeccion('cobros')} />}>
+            <Route path="cobros" element={<Cobros />} />
+          </Route>
+
+          {/* 2. Ruta específica de Notificaciones conectada al componente real */}
+          <Route element={<RutaProtegida roles={rolesDeSeccion('notificaciones')} />}>
+            <Route path="notificaciones" element={<Notificaciones />} />
+          </Route>
+
         </Route>
       </Route>
 
