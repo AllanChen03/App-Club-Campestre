@@ -49,7 +49,7 @@ export default function AppLayout() {
         </nav>
 
         <div className="barra__acciones">
-          <Link to="/reservas" className="boton boton--lima">+ Reservar</Link>
+          <Link to="/reservas/nueva" className="boton boton--lima">+ Reservar</Link>
           <div className="usuario" ref={menuRef}>
             <button
               type="button"
