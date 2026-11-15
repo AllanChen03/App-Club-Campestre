@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import Campo from '../components/Campo';
 import Alerta from '../components/Alerta';
-import EstadoCuenta from '../components/EstadoCuenta';
 import { authApi } from '../api/auth';
 import { fecha, iniciales } from '../utils/formato';
 
@@ -83,7 +82,7 @@ export default function Perfil() {
         <div>
           <h1 className="inicio__saludo">{perfil.nombre_completo}</h1>
           <p className="perfil__sub">
-            {perfil.roles?.nombre} · <EstadoCuenta estado={perfil.estado} />
+            {perfil.roles?.nombre} · <span className="insignia insignia--activo">{perfil.estado || 'Activo'}</span>
           </p>
         </div>
       </header>
@@ -134,7 +133,6 @@ export default function Perfil() {
               <Dato etiqueta="Número de socio">{socio.numero_socio}</Dato>
               <Dato etiqueta="Socio desde">{fecha(socio.fecha_afiliacion)}</Dato>
               <Dato etiqueta="Tipo">{membresia?.tipo}</Dato>
-              <Dato etiqueta="Estado">{membresia && <EstadoCuenta estado={membresia.estado} />}</Dato>
               <Dato etiqueta="Vence">{fecha(membresia?.fecha_vencimiento)}</Dato>
             </dl>
           </section>

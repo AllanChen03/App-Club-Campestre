@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import Modal from '../Modal';
 import Campo from '../Campo';
 import Alerta from '../Alerta';
-import EstadoCuenta from '../EstadoCuenta';
 import { usuariosApi } from '../../api/usuarios';
 import { useAuth } from '../../context/AuthContext';
 import { fecha } from '../../utils/formato';
@@ -143,7 +142,7 @@ export default function DetalleUsuario({ id, onCerrar, onCambio }) {
             <p className="perfil__sub">
               {nombreRol(usuario.roles?.nombre)}
               {usuario.socio?.numero_socio && ` · Socio N.º ${usuario.socio.numero_socio}`} ·{' '}
-              <EstadoCuenta estado={usuario.estado} />
+              <span className={`insignia insignia--${usuario.estado?.toLowerCase()}`}>{usuario.estado}</span>
             </p>
           </header>
 
@@ -204,7 +203,7 @@ export default function DetalleUsuario({ id, onCerrar, onCambio }) {
               {membresia ? (
                 <dl className="datos datos--dos">
                   <div className="dato"><dt>Tipo</dt><dd>{membresia.tipo}</dd></div>
-                  <div className="dato"><dt>Estado</dt><dd><EstadoCuenta estado={membresia.estado} /></dd></div>
+                  <div className="dato"><dt>Estado</dt><dd><span className={`insignia insignia--${membresia.estado?.toLowerCase()}`}>{membresia.estado}</span></dd></div>
                   <div className="dato"><dt>Inicio</dt><dd>{fecha(membresia.fecha_inicio)}</dd></div>
                   <div className="dato"><dt>Vence</dt><dd>{fecha(membresia.fecha_vencimiento)}</dd></div>
                 </dl>
