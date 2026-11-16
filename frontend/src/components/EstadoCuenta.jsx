@@ -37,7 +37,8 @@ export default function EstadoCuenta({ idSocio }) {
     .filter(c => c.estado === 'Vencido' || (c.estado === 'Pendiente' && new Date(c.fecha_vencimiento) < new Date()))
     .reduce((acc, curr) => acc + Number(curr.monto), 0);
 
-  const urlPdf = `http://localhost:3000/api/finanzas/estado-cuenta/${idSocio}/pdf`;
+  // Misma base que el resto de la app: VITE_API_URL en producción o el proxy de Vite en desarrollo
+  const urlPdf = `${import.meta.env.VITE_API_URL ?? ''}/api/finanzas/estado-cuenta/${idSocio}/pdf`;
 
   return (
     <div className="app__contenido">

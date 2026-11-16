@@ -1,42 +1,32 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'; 
+import { solicitud } from './cliente';
+
+// Usa el cliente compartido: misma dirección que el resto de la app
+// (VITE_API_URL o el proxy de Vite) y envía el token de la sesión.
+const MENSAJE_GENERICO = 'Ocurrió un error inesperado';
+
+async function llamar(ruta, opciones, mensajeError) {
+  try {
+    return await solicitud(`/api/notificaciones${ruta}`, { auth: true, ...opciones });
+  } catch (error) {
+    // Conserva el mensaje del servidor si lo hay; si no, uno que diga qué falló
+    throw new Error(error.message && error.message !== MENSAJE_GENERICO ? error.message : mensajeError);
+  }
+}
 
 export const notificacionesApi = {
-  async listarPlantillas() {
-    const res = await fetch(`${API_URL}/notificaciones/plantillas`);
-    if (!res.ok) throw new Error('Error al cargar las plantillas');
-    return res.json();
-  },
+  listarPlantillas: () =>
+    llamar('/plantillas', {}, 'Error al cargar las plantillas'),
 
-  async actualizarPlantilla(id, datos) {
-    const res = await fetch(`${API_URL}/notificaciones/plantillas/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datos)
-    });
-    if (!res.ok) throw new Error('Error al actualizar la plantilla');
-    return res.json();
-  },
+  actualizarPlantilla: (id, datos) =>
+    llamar(`/plantillas/${id}`, { method: 'PUT', body: datos }, 'Error al actualizar la plantilla'),
 
-  async listarHistorial() {
-    const res = await fetch(`${API_URL}/notificaciones/historial`);
-    if (!res.ok) throw new Error('Error al cargar el historial');
-    return res.json();
-  },
+  listarHistorial: () =>
+    llamar('/historial', {}, 'Error al cargar el historial'),
 
-  // Agregamos esta función para obtener la lista de socios para el desplegable
-  async listarUsuarios() {
-    const res = await fetch(`${API_URL}/notificaciones/usuarios`);
-    if (!res.ok) throw new Error('Error al cargar los usuarios');
-    return res.json();
-  },
+  // Lista de socios para el desplegable
+  listarUsuarios: () =>
+    llamar('/usuarios', {}, 'Error al cargar los usuarios'),
 
-  async enviar(datos) {
-    const res = await fetch(`${API_URL}/notificaciones/enviar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(datos)
-    });
-    if (!res.ok) throw new Error('Error al enviar la notificación');
-    return res.json();
-  }
+  enviar: (datos) =>
+    llamar('/enviar', { method: 'POST', body: datos }, 'Error al enviar la notificación')
 };
