@@ -14,7 +14,7 @@ const ACCIONES = {
   suspender: {
     texto: 'Suspender',
     clase: 'boton--aviso',
-    pregunta: 'No podrá iniciar sesión ni usar el club hasta que se active de nuevo.',
+    pregunta: 'No podrá iniciar sesión ni usar el club hasta que se active de nuevo. Se cancelarán sus reservas e invitados que aún no han llegado.',
     disponible: (u, propia) => !propia && u.roles?.nombre === ROL_SOCIO && u.estado === 'Activo'
   },
   activar: {
@@ -26,7 +26,7 @@ const ACCIONES = {
   desactivar: {
     texto: 'Desactivar',
     clase: 'boton--peligro',
-    pregunta: 'La cuenta quedará dada de baja y no podrá iniciar sesión.',
+    pregunta: 'La cuenta quedará dada de baja y no podrá iniciar sesión. Si es socio, se cancelarán sus reservas e invitados que aún no han llegado.',
     disponible: (u, propia) => !propia && ['Activo', 'Suspendido'].includes(u.estado)
   },
   restablecerContrasena: {

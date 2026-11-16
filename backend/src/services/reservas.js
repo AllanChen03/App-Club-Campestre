@@ -626,6 +626,68 @@ async function cancelarReserva(idReserva, { socio = null, idUsuario, motivo = nu
     return reserva;
 }
 
+// Cuando una cuenta de socio se suspende o desactiva, sus reservas que aún no
+// empiezan se cancelan (liberan el turno, anulan el cargo y avisan por correo)
+// y sus visitas de invitados futuras también. Las que ya empezaron no se tocan.
+async function cancelarReservasDelSocio(idUsuario, { idUsuarioAdmin, motivo }) {
+    const { data: socio, error } = await supabaseAdmin
+        .from('socios')
+        .select('id_socio')
+        .eq('id_usuario', idUsuario)
+        .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!socio) return { canceladas: [], visitas: 0 };
+
+    await actualizarVencidas();
+    const hoy = h.ahora().fecha;
+
+    const { data: reservas, error: e } = await supabaseAdmin
+        .from('reservas')
+        .select('id_reserva')
+        .eq('id_socio', socio.id_socio)
+        .in('estado', ESTADOS_ACTIVOS)
+        .gte('fecha_reserva', hoy);
+
+    if (e) throw new Error(e.message);
+
+    const canceladas = [];
+    for (const r of reservas) {
+        try {
+            const c = await cancelarReserva(r.id_reserva, { idUsuario: idUsuarioAdmin, motivo });
+            canceladas.push(c.codigo);
+        } catch (err) {
+            // Una reserva que ya empezó no se cancela
+            if (!(err instanceof ErrorHttp)) throw err;
+        }
+    }
+
+    // Visitas sin reserva (las de las reservas ya se cancelaron arriba)
+    const invitados = await idsInvitadosDe(socio.id_socio);
+    if (!invitados.length) return { canceladas, visitas: 0 };
+
+    const { data: visitas, error: ev } = await supabaseAdmin
+        .from('visitas_invitados')
+        .update({ estado: 'Cancelada' })
+        .eq('estado', 'Programada')
+        .gte('fecha_visita', hoy)
+        .in('id_invitado', invitados)
+        .select('id_visita');
+
+    if (ev) throw new Error(ev.message);
+    return { canceladas, visitas: visitas.length };
+}
+
+async function idsInvitadosDe(idSocio) {
+    const { data, error } = await supabaseAdmin
+        .from('invitados')
+        .select('id_invitado')
+        .eq('id_socio', idSocio);
+
+    if (error) throw new Error(error.message);
+    return data.map((i) => i.id_invitado);
+}
+
 module.exports = {
     codigo,
     formatear,
@@ -640,5 +702,6 @@ module.exports = {
     crearReserva,
     modificarReserva,
     confirmarReserva,
-    cancelarReserva
+    cancelarReserva,
+    cancelarReservasDelSocio
 };
