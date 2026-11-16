@@ -268,9 +268,11 @@ const obtenerResumenFinanciero = async (req, res) => {
 
     const listaEstados = (cargos || []).map(c => {
       const monto = Number(c.monto) || 0;
-      facturado += monto;
+      const anulado = c.estado === 'Anulado';
+      // Un cargo anulado no se factura ni deja saldo
+      if (!anulado) facturado += monto;
 
-      let estadoActual = c.estado; // 'Pendiente', 'Pagado', 'Parcial'
+      let estadoActual = c.estado; // 'Pendiente', 'Pagado', 'Parcial', 'Anulado'
       if (estadoActual === 'Pendiente' || estadoActual === 'Parcial') {
         if (c.fecha_vencimiento && c.fecha_vencimiento < today) {
           vencido += monto;
@@ -287,7 +289,7 @@ const obtenerResumenFinanciero = async (req, res) => {
         socio: c.socios?.usuarios?.nombre_completo || 'Socio general',
         detalle: c.concepto || c.descripcion || 'Cargo',
         vence: c.fecha_vencimiento || '—',
-        saldo: estadoActual === 'Pagado' ? 0 : monto,
+        saldo: estadoActual === 'Pagado' || anulado ? 0 : monto,
         estado: estadoActual === 'Pagado' ? 'Al día' : estadoActual
       };
     });

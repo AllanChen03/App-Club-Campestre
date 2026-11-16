@@ -309,7 +309,10 @@ export default function Cobros() {
                         <td style={{ padding: '1rem 0' }}>
                           <span
                             style={{
-                              color: item.estado === 'Al día' ? '#059669' : item.estado === 'Vencido' ? '#dc2626' : '#d97706',
+                              color: item.estado === 'Al día' ? '#059669'
+                                : item.estado === 'Vencido' ? '#dc2626'
+                                : item.estado === 'Anulado' ? '#111827'
+                                : '#d97706',
                               fontWeight: '500'
                             }}
                           >
