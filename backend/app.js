@@ -18,8 +18,15 @@ const invitadosRoutes = require('./src/routes/invitadosRoutes');
 
 const app = express();
 
+// Acepta el frontend configurado y, en desarrollo, cualquier dirección local
+// (localhost, 127.0.0.1 o *.localhost) para poder abrir una sesión por rol.
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const ORIGEN_LOCAL = /^http:\/\/(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|\[::1\]):\d+$/i;
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173'
+    origin(origen, responder) {
+        responder(null, !origen || origen === FRONTEND_URL || ORIGEN_LOCAL.test(origen));
+    }
 }));
 app.use(express.json());
 
