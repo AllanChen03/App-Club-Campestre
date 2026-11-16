@@ -17,13 +17,20 @@ import AppLayout from './components/AppLayout';
 import AdminLayout from './components/AdminLayout';
 import { ROLES_ADMIN, ROL_SOCIO, rolesDeSeccion } from './utils/roles';
 import EstadoCuenta from './components/EstadoCuenta';
+import MisReservas from './pages/reservas/MisReservas';
+import FormReserva from './pages/reservas/FormReserva';
+import DetalleReserva from './pages/reservas/DetalleReserva';
+import Invitados from './pages/Invitados';
+import Instalaciones from './pages/admin/Instalaciones';
+import InvitadosDia from './pages/admin/InvitadosDia';
 import { leerSesion } from './api/cliente';
 
 const pendiente = (titulo, volver) => <Proximamente titulo={titulo} volver={volver} />;
 
 const VistaEstadoCuenta = () => {
   const sesion = leerSesion();
-  const idSocio = sesion?.usuario?.id_socio || sesion?.id_socio || 1; 
+  // El backend acepta el id del usuario y, para un socio, siempre devuelve su propio estado de cuenta
+  const idSocio = sesion?.usuario?.id_socio ?? sesion?.usuario?.id_usuario ?? null;
   return <EstadoCuenta idSocio={idSocio} />;
 };
 
@@ -42,8 +49,11 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/inicio" element={<Inicio />} />
           <Route path="/perfil" element={<Perfil />} />
-          <Route path="/reservas" element={pendiente('Reservas')} />
-          <Route path="/invitados" element={pendiente('Invitados')} />
+          <Route path="/reservas" element={<MisReservas />} />
+          <Route path="/reservas/nueva" element={<FormReserva key="nueva" />} />
+          <Route path="/reservas/:id" element={<DetalleReserva />} />
+          <Route path="/reservas/:id/modificar" element={<FormReserva key="modificar" />} />
+          <Route path="/invitados" element={<Invitados />} />
           <Route path="/membresia" element={pendiente('Membresía')} />
           <Route path="/estado-cuenta" element={<VistaEstadoCuenta />} />
         </Route>
@@ -69,14 +79,20 @@ export default function App() {
 
           {/* Módulos restantes con "Próximamente" */}
           {[
-            ['membresias', 'Membresías'],
-            ['instalaciones', 'Instalaciones'],
-            ['invitados', 'Invitados del día']
+            ['membresias', 'Membresías']
           ].map(([ruta, titulo]) => (
             <Route key={ruta} element={<RutaProtegida roles={rolesDeSeccion(ruta)} />}>
               <Route path={ruta} element={pendiente(titulo, '/admin')} />
             </Route>
           ))}
+
+          {/* Reservas e instalaciones */}
+          <Route element={<RutaProtegida roles={rolesDeSeccion('instalaciones')} />}>
+            <Route path="instalaciones" element={<Instalaciones />} />
+          </Route>
+          <Route element={<RutaProtegida roles={rolesDeSeccion('invitados')} />}>
+            <Route path="invitados" element={<InvitadosDia />} />
+          </Route>
 
           {/* Módulo de Cobros conectado al componente real */}
           <Route element={<RutaProtegida roles={rolesDeSeccion('cobros')} />}>
