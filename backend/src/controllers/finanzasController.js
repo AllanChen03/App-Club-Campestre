@@ -4,6 +4,7 @@ require('../utils/pdfFuentes'); // incluye las fuentes de pdfkit al publicar en 
 const { construirEstadoCuenta, estadoDePeriodo } = require('../services/estadoCuenta');
 const { ErrorHttp } = require('../utils/ErrorHttp');
 const { ahora: ahoraCR } = require('../utils/horario');
+const { activarMembresiaPagada } = require('../services/membresias');
 
 // Definimos este alias para que todas las llamadas existentes a 'supabase' funcionen correctamente
 const supabase = supabaseAdmin;
@@ -103,7 +104,21 @@ const registrarPagoManual = async (req, res) => {
         .eq('id_cargo', item.id_cargo);
     }
 
-    res.status(201).json({ mensaje: 'Pago registrado exitosamente', id_pago });
+    // Si con este pago queda saldada la membresía de un socio nuevo, se activa su cuenta
+    let mensaje = 'Pago registrado exitosamente';
+    let activacion = null;
+    try {
+      activacion = await activarMembresiaPagada(idSocioReal, adminId);
+      if (activacion) {
+        mensaje += `. Membresía ${activacion.membresia} activa hasta el ${activacion.vence.split('-').reverse().join('/')}`;
+        if (activacion.cuentaActivada) mensaje += ' y la cuenta del socio quedó activa';
+      }
+    } catch (err) {
+      console.error('Error al activar la membresía pagada:', err.message);
+      mensaje += '. No se pudo activar la membresía: actívela desde Membresías';
+    }
+
+    res.status(201).json({ mensaje, id_pago, activacion });
   } catch (error) {
     console.error('Error detallado en registrarPagoManual:', error);
     res.status(500).json({ error: error.message });
