@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Alerta from '../../components/Alerta';
-import EstadoCuenta from '../../components/EstadoCuenta';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES_ADMIN, ROL_SOCIO, nombreRol } from '../../utils/roles';
 import { usuariosApi } from '../../api/usuarios';
@@ -105,7 +104,7 @@ export default function PanelAdmin() {
                       <td>{u.numero_socio ?? '—'}</td>
                       <td>{u.correo ?? '—'}</td>
                       <td>{fecha(u.fecha_creacion)}</td>
-                      <td><EstadoCuenta estado={u.estado} /></td>
+                      <td><span className={`insignia insignia--${u.estado?.toLowerCase()}`}>{u.estado}</span></td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Alerta from '../../components/Alerta';
-import EstadoCuenta from '../../components/EstadoCuenta';
 import DetalleUsuario from '../../components/admin/DetalleUsuario';
 import NuevoAdministrador from '../../components/admin/NuevoAdministrador';
 import { usuariosApi } from '../../api/usuarios';
@@ -149,8 +148,7 @@ export default function Usuarios({ roles, titulo, descripcion }) {
                     <td>{u.cedula}</td>
                     <td>{u.correo ?? '—'}</td>
                     <td>{u.telefono}</td>
-                    <td><EstadoCuenta estado={u.estado} /></td>
-                  </tr>
+                    <td><span className={`insignia insignia--${u.estado?.toLowerCase()}`}>{u.estado}</span></td>                  </tr>
                 ))}
               </tbody>
             </table>

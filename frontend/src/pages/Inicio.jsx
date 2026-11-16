@@ -91,7 +91,7 @@ export default function Inicio() {
           {AREAS.map((a) => (
             <Link
               key={a.id}
-              to={`/reservas?area=${a.id}`}
+              to={`/reservas/nueva?area=${a.id}`}
               className="areas__boton"
               style={{ background: a.color }}
             >

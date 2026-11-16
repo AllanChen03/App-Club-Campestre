@@ -6,24 +6,32 @@ import RecuperarContrasena from './pages/RecuperarContrasena';
 import RestablecerContrasena from './pages/RestablecerContrasena';
 import Inicio from './pages/Inicio';
 import Perfil from './pages/Perfil';
-import Proximamente from './pages/Proximamente';
 import PanelAdmin from './pages/admin/PanelAdmin';
 import Usuarios from './pages/admin/Usuarios';
+import Notificaciones from './components/Notificaciones';
+import Cobros from './components/Cobros';
 import RutaProtegida from './components/RutaProtegida';
 import InicioSegunRol from './components/InicioSegunRol';
 import AppLayout from './components/AppLayout';
 import AdminLayout from './components/AdminLayout';
 import { ROLES_ADMIN, ROL_SOCIO, rolesDeSeccion } from './utils/roles';
-<<<<<<< Updated upstream
-=======
 import EstadoCuenta from './components/EstadoCuenta';
+import MisReservas from './pages/reservas/MisReservas';
+import FormReserva from './pages/reservas/FormReserva';
+import DetalleReserva from './pages/reservas/DetalleReserva';
+import Invitados from './pages/Invitados';
+import Instalaciones from './pages/admin/Instalaciones';
+import InvitadosDia from './pages/admin/InvitadosDia';
 import { leerSesion } from './api/cliente';
 import MiMembresia from './pages/MiMembresia';
 import MembresiasAdmin from './pages/admin/MembresiasAdmin';
->>>>>>> Stashed changes
 
-// Secciones que corresponden a los módulos de otros integrantes
-const pendiente = (titulo, volver) => <Proximamente titulo={titulo} volver={volver} />;
+const VistaEstadoCuenta = () => {
+  const sesion = leerSesion();
+  // El backend acepta el id del usuario y, para un socio, siempre devuelve su propio estado de cuenta
+  const idSocio = sesion?.usuario?.id_socio ?? sesion?.usuario?.id_usuario ?? null;
+  return <EstadoCuenta idSocio={idSocio} />;
+};
 
 export default function App() {
   return (
@@ -40,19 +48,17 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/inicio" element={<Inicio />} />
           <Route path="/perfil" element={<Perfil />} />
-          <Route path="/reservas" element={pendiente('Reservas')} />
-          <Route path="/invitados" element={pendiente('Invitados')} />
-<<<<<<< Updated upstream
-          <Route path="/membresia" element={pendiente('Membresía')} />
-          <Route path="/estado-cuenta" element={pendiente('Estado de cuenta')} />
-=======
+          <Route path="/reservas" element={<MisReservas />} />
+          <Route path="/reservas/nueva" element={<FormReserva key="nueva" />} />
+          <Route path="/reservas/:id" element={<DetalleReserva />} />
+          <Route path="/reservas/:id/modificar" element={<FormReserva key="modificar" />} />
+          <Route path="/invitados" element={<Invitados />} />
           <Route path="/membresia" element={<MiMembresia />} />
           <Route path="/estado-cuenta" element={<VistaEstadoCuenta />} />
->>>>>>> Stashed changes
         </Route>
       </Route>
 
-      {/* Administradores: cada sección solo para los roles de utils/roles.js */}
+      {/* Administradores */}
       <Route path="/admin" element={<RutaProtegida roles={ROLES_ADMIN} />}>
         <Route element={<AdminLayout />}>
           <Route index element={<PanelAdmin />} />
@@ -69,21 +75,18 @@ export default function App() {
               element={<Usuarios key="admins" roles={ROLES_ADMIN} titulo="Administradores" descripcion="Cuentas con acceso al panel de administración." />}
             />
           </Route>
-          {[
-            ['instalaciones', 'Instalaciones'],
-            ['invitados', 'Invitados del día'],
-            ['cobros', 'Cobros'],
-            ['notificaciones', 'Notificaciones']
-          ].map(([ruta, titulo]) => (
-            <Route key={ruta} element={<RutaProtegida roles={rolesDeSeccion(ruta)} />}>
-              <Route path={ruta} element={pendiente(titulo, '/admin')} />
-            </Route>
-          ))}
-<<<<<<< Updated upstream
-=======
 
+          {/* Socios y membresías */}
           <Route element={<RutaProtegida roles={rolesDeSeccion('membresias')} />}>
-           <Route path="membresias" element={<MembresiasAdmin />} />
+            <Route path="membresias" element={<MembresiasAdmin />} />
+          </Route>
+
+          {/* Reservas e instalaciones */}
+          <Route element={<RutaProtegida roles={rolesDeSeccion('instalaciones')} />}>
+            <Route path="instalaciones" element={<Instalaciones />} />
+          </Route>
+          <Route element={<RutaProtegida roles={rolesDeSeccion('invitados')} />}>
+            <Route path="invitados" element={<InvitadosDia />} />
           </Route>
 
           {/* Módulo de Cobros conectado al componente real */}
@@ -96,7 +99,6 @@ export default function App() {
             <Route path="notificaciones" element={<Notificaciones />} />
           </Route>
 
->>>>>>> Stashed changes
         </Route>
       </Route>
 
