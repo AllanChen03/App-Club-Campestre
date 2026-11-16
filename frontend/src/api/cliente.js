@@ -99,3 +99,31 @@ export async function solicitud(ruta, { method = 'GET', body, auth = false } = {
 
   return datos;
 }
+
+// Descarga un archivo protegido (por ejemplo un PDF) con el token de la sesión
+export async function descargarArchivo(ruta, nombreArchivo) {
+  let respuesta = await enviar(ruta, { method: 'GET', token: leerSesion()?.access_token });
+
+  if (respuesta.status === 401) {
+    const token = await renovarToken();
+    if (!token) {
+      escribirSesion(null);
+      throw new ApiError('Su sesión expiró. Inicie sesión de nuevo.', 401);
+    }
+    respuesta = await enviar(ruta, { method: 'GET', token });
+  }
+
+  if (!respuesta.ok) {
+    const datos = await respuesta.json().catch(() => ({}));
+    throw new ApiError(datos.mensaje || 'No se pudo descargar el archivo', respuesta.status, datos);
+  }
+
+  const url = URL.createObjectURL(await respuesta.blob());
+  const enlace = document.createElement('a');
+  enlace.href = url;
+  enlace.download = nombreArchivo;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

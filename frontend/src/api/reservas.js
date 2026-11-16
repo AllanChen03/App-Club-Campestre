@@ -1,4 +1,4 @@
-import { leerSesion, solicitud } from './cliente';
+import { descargarArchivo, solicitud } from './cliente';
 
 const con = (method, body) => ({ method, body, auth: true });
 const consulta = (params) => {
@@ -47,27 +47,9 @@ export const invitadosApi = {
 };
 
 // Descarga el PDF del reporte de uso como archivo
-export async function descargarReporte(desde, hasta) {
-  const ruta = `/api/instalaciones/reportes/pdf${consulta({ desde, hasta })}`;
-  const pedir = () => fetch(ruta, { headers: { Authorization: `Bearer ${leerSesion()?.access_token ?? ''}` } });
-
-  let respuesta = await pedir();
-  if (respuesta.status === 401) {
-    // Renueva el token con una consulta normal y reintenta
-    await solicitud('/api/auth/perfil', { auth: true });
-    respuesta = await pedir();
-  }
-  if (!respuesta.ok) {
-    const datos = await respuesta.json().catch(() => ({}));
-    throw new Error(datos.mensaje || 'No se pudo descargar el PDF');
-  }
-
-  const url = URL.createObjectURL(await respuesta.blob());
-  const enlace = document.createElement('a');
-  enlace.href = url;
-  enlace.download = `reporte-instalaciones-${desde}-a-${hasta}.pdf`;
-  document.body.appendChild(enlace);
-  enlace.click();
-  enlace.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+export function descargarReporte(desde, hasta) {
+  return descargarArchivo(
+    `/api/instalaciones/reportes/pdf${consulta({ desde, hasta })}`,
+    `reporte-instalaciones-${desde}-a-${hasta}.pdf`
+  );
 }

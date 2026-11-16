@@ -2,16 +2,25 @@ const express = require('express');
 const router = express.Router();
 const {
   obtenerPlantillas,
-  actualizarPlantilla, // <--- Asegúrate de importarla
+  actualizarPlantilla,
   enviarNotificacion,
   obtenerHistorialNotificaciones,
   obtenerUsuarios
 } = require('../controllers/notificacionesController');
 
-router.get('/plantillas', obtenerPlantillas);
-router.put('/plantillas/:id', actualizarPlantilla); // <--- Añade esta línea para poder editar plantillas
-router.post('/enviar', enviarNotificacion);
-router.get('/historial', obtenerHistorialNotificaciones);
-router.get('/usuarios', obtenerUsuarios);
+const { verificarToken } = require('../middlewares/verificarToken');
+const { verificarRol, verificarActivo } = require('../middlewares/verificarPermisos');
+const { ROL_GENERAL, ROL_COBROS } = require('../utils/roles');
+
+// Plantillas, envíos e historial: solo el administrador general (sección Notificaciones)
+const general = [verificarToken, verificarRol(ROL_GENERAL), verificarActivo];
+// La lista de usuarios también la usa Cobros
+const generalYCobros = [verificarToken, verificarRol(ROL_GENERAL, ROL_COBROS), verificarActivo];
+
+router.get('/plantillas', general, obtenerPlantillas);
+router.put('/plantillas/:id', general, actualizarPlantilla);
+router.post('/enviar', general, enviarNotificacion);
+router.get('/historial', general, obtenerHistorialNotificaciones);
+router.get('/usuarios', generalYCobros, obtenerUsuarios);
 
 module.exports = router;

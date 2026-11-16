@@ -1,4 +1,8 @@
-import { solicitud } from './cliente';
+import { descargarArchivo, solicitud } from './cliente';
+
+// Descargar el PDF del estado de cuenta (la ruta exige sesión)
+export const descargarPdfEstadoCuentaAPI = (idSocio) =>
+  descargarArchivo(`/api/finanzas/estado-cuenta/${idSocio}/pdf`, 'estado-de-cuenta.pdf');
 
 // Consultar el estado de cuenta de un socio (requiere autenticación)
 export const obtenerEstadoCuentaAPI = async (idSocio) => {

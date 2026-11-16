@@ -1,10 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { obtenerEstadoCuentaAPI } from '../api/finanzas';
+import { descargarPdfEstadoCuentaAPI, obtenerEstadoCuentaAPI } from '../api/finanzas';
 
 export default function EstadoCuenta({ idSocio }) {
   const [data, setData] = useState({ cargos: [], pagos: [], saldoTotal: 0 });
   const [loading, setLoading] = useState(true);
   const [mostrarModalPdf, setMostrarModalPdf] = useState(false); // Estado para controlar el modal
+  const [descargando, setDescargando] = useState(false);
+  const [errorPdf, setErrorPdf] = useState('');
+
+  // El PDF se pide con el token de la sesión (un enlace directo ya no tiene permiso)
+  async function descargarPdf() {
+    setDescargando(true);
+    setErrorPdf('');
+    try {
+      await descargarPdfEstadoCuentaAPI(idSocio);
+    } catch (err) {
+      setErrorPdf(err.message);
+    } finally {
+      setDescargando(false);
+    }
+  }
 
   useEffect(() => {
     if (!idSocio) {
@@ -36,9 +51,6 @@ export default function EstadoCuenta({ idSocio }) {
   const vencido = data.cargos
     .filter(c => c.estado === 'Vencido' || (c.estado === 'Pendiente' && new Date(c.fecha_vencimiento) < new Date()))
     .reduce((acc, curr) => acc + Number(curr.monto), 0);
-
-  // Misma base que el resto de la app: VITE_API_URL en producción o el proxy de Vite en desarrollo
-  const urlPdf = `${import.meta.env.VITE_API_URL ?? ''}/api/finanzas/estado-cuenta/${idSocio}/pdf`;
 
   return (
     <div className="app__contenido">
@@ -167,17 +179,17 @@ export default function EstadoCuenta({ idSocio }) {
                 >
                   Volver
                 </button>
-                <a
-                  href={urlPdf}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={descargarPdf}
+                  disabled={descargando}
                   className="boton boton--oscuro boton--chico"
-                  style={{ textDecoration: 'none' }}
                 >
-                  Descargar
-                </a>
+                  {descargando ? 'Descargando…' : 'Descargar'}
+                </button>
               </div>
             </div>
+            {errorPdf && <p className="campo__mensaje" role="alert" style={{ marginBottom: '16px' }}>{errorPdf}</p>}
 
             {/* Documento simulado (Vista previa de la maqueta) */}
             <div style={{ background: '#ffffff', border: '1px solid var(--borde)', borderRadius: '12px', padding: '32px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>

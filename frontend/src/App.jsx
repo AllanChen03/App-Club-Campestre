@@ -29,7 +29,8 @@ const pendiente = (titulo, volver) => <Proximamente titulo={titulo} volver={volv
 
 const VistaEstadoCuenta = () => {
   const sesion = leerSesion();
-  const idSocio = sesion?.usuario?.id_socio || sesion?.id_socio || 1; 
+  // El backend acepta el id del usuario y, para un socio, siempre devuelve su propio estado de cuenta
+  const idSocio = sesion?.usuario?.id_socio ?? sesion?.usuario?.id_usuario ?? null;
   return <EstadoCuenta idSocio={idSocio} />;
 };
 
