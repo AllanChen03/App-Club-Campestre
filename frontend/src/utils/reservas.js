@@ -39,6 +39,11 @@ export function sumarDias(fecha, dias) {
   return d.toISOString().slice(0, 10);
 }
 
+// Días entre dos fechas 'YYYY-MM-DD', incluyendo ambas
+export function diasEntre(desde, hasta) {
+  return Math.round((new Date(`${hasta}T00:00:00Z`) - new Date(`${desde}T00:00:00Z`)) / 86400000) + 1;
+}
+
 // Lunes de la semana de una fecha
 export function lunesDe(fecha) {
   const d = new Date(`${fecha}T00:00:00Z`);

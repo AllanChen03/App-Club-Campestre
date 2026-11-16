@@ -199,6 +199,7 @@ export default function Calendario({ instalaciones }) {
       {bloqueando && (
         <ModalBloqueo
           instalaciones={instalaciones.filter((i) => i.estado === 'Activa')}
+          fechaInicial={dia ?? lunes}
           onCerrar={cerrarBloqueo}
           onCreado={(d) => { setBloqueando(false); setAviso(d.mensaje); cargar(); }}
         />
