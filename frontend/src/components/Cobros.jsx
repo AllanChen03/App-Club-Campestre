@@ -301,10 +301,26 @@ export default function Cobros() {
                     estadosCuenta.map((item) => (
                       <tr key={item.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                         <td style={{ padding: '1rem 0', fontWeight: '500', color: '#111827' }}>{item.socio}</td>
-                        <td style={{ padding: '1rem 0', color: '#4b5563' }}>{item.detalle}</td>
+                        <td style={{ padding: '1rem 1rem 1rem 0', color: '#4b5563', whiteSpace: 'normal' }}>
+                          {item.detalle}
+                          {item.descripcion && (
+                            <div style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '2px' }}>{item.descripcion}</div>
+                          )}
+                        </td>
                         <td style={{ padding: '1rem 0', color: '#4b5563' }}>{item.vence}</td>
                         <td style={{ padding: '1rem 0', fontWeight: '500', color: '#111827' }}>
-                          ₡{item.saldo.toLocaleString('es-CR')}
+                          {item.estado === 'Anulado' ? (
+                            <>
+                              <span style={{ textDecoration: 'line-through', color: '#6b7280' }}>
+                                ₡{(item.monto ?? 0).toLocaleString('es-CR')}
+                              </span>
+                              <div style={{ fontSize: '0.8125rem', fontWeight: 400, color: '#111827' }}>
+                                Anulado, saldo ₡0
+                              </div>
+                            </>
+                          ) : (
+                            <>₡{item.saldo.toLocaleString('es-CR')}</>
+                          )}
                         </td>
                         <td style={{ padding: '1rem 0' }}>
                           <span

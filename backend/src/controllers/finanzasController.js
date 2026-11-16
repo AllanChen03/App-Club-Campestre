@@ -288,6 +288,8 @@ const obtenerResumenFinanciero = async (req, res) => {
         id: c.id_cargo,
         socio: c.socios?.usuarios?.nombre_completo || 'Socio general',
         detalle: c.concepto || c.descripcion || 'Cargo',
+        descripcion: c.concepto && c.descripcion ? c.descripcion : null,
+        monto,
         vence: c.fecha_vencimiento || '—',
         saldo: estadoActual === 'Pagado' || anulado ? 0 : monto,
         estado: estadoActual === 'Pagado' ? 'Al día' : estadoActual

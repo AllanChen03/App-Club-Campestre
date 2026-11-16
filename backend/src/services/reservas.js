@@ -178,9 +178,12 @@ async function crearCargo(reserva) {
     if (errorExistente) throw new Error(errorExistente.message);
     if (existente.length) return existente[0];
 
+    // Ejemplo: "R-0016 · Cancha de tenis 16/11/2026: Alquiler de raqueta x2 (₡6 000), Tubo de bolas (₡2 000)"
+    const colones = (n) => `₡${Number(n).toLocaleString('es-CR')}`;
     const detalle = reserva.servicios
-        .map((s) => `${s.nombre}${s.cantidad > 1 ? ` x${s.cantidad}` : ''}`)
+        .map((s) => `${s.nombre}${s.cantidad > 1 ? ` x${s.cantidad}` : ''} (${colones(s.cantidad * s.precio_unitario)})`)
         .join(', ');
+    const fecha = reserva.fecha_reserva.split('-').reverse().join('/');
 
     const { data, error } = await supabaseAdmin
         .from('cargos')
@@ -188,7 +191,7 @@ async function crearCargo(reserva) {
             id_socio: reserva.id_socio,
             id_reserva: reserva.id_reserva,
             concepto: 'Servicios adicionales de reserva',
-            descripcion: `${reserva.codigo} · ${reserva.instalacion} ${reserva.fecha_reserva}: ${detalle}`.slice(0, 255),
+            descripcion: `${reserva.codigo} · ${reserva.instalacion} ${fecha}: ${detalle}`.slice(0, 255),
             monto: reserva.total_servicios,
             fecha_vencimiento: h.sumarDias(h.ahora().fecha, DIAS_PAGO_CARGO),
             estado: 'Pendiente'
