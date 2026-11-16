@@ -11,6 +11,7 @@ export const instalacionesApi = {
   listar: () => solicitud('/api/instalaciones', { auth: true }),
   crear: (datos) => solicitud('/api/instalaciones', con('POST', datos)),
   actualizar: (id, datos) => solicitud(`/api/instalaciones/${id}`, con('PATCH', datos)),
+  eliminar: (id, confirmacion) => solicitud(`/api/instalaciones/${id}`, con('DELETE', { confirmacion })),
   crearServicio: (id, datos) => solicitud(`/api/instalaciones/${id}/servicios`, con('POST', datos)),
   actualizarServicio: (id, datos) => solicitud(`/api/instalaciones/servicios/${id}`, con('PATCH', datos)),
   disponibilidad: (id, fecha, excluir) =>

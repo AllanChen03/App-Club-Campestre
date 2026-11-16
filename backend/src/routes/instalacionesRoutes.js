@@ -23,6 +23,7 @@ router.patch('/servicios/:id', gestion, c.actualizarServicio);
 router.get('/', autenticado, c.listar);
 router.post('/', gestion, c.crear);
 router.patch('/:id', gestion, c.actualizar);
+router.delete('/:id', gestion, c.eliminar);
 router.post('/:id/servicios', gestion, c.crearServicio);
 router.get('/:id/disponibilidad', autenticado, c.consultarDisponibilidad);
 

@@ -30,6 +30,14 @@ const actualizar = manejar('Error al actualizar instalación', 'No se pudo actua
         res.json({ mensaje: 'Instalación actualizada', instalacion });
     });
 
+const eliminar = manejar('Error al eliminar instalación', 'No se pudo eliminar la instalación',
+    async (req, res) => {
+        const id = leerId(req.params.id);
+        if (!id) return res.status(400).json(ID_INVALIDO);
+        const nombre = await svc.eliminarInstalacion(id, req.body?.confirmacion);
+        res.json({ mensaje: `Se eliminó la instalación ${nombre}` });
+    });
+
 const crearServicio = manejar('Error al crear servicio', 'No se pudo crear el servicio',
     async (req, res) => {
         const id = leerId(req.params.id);
@@ -134,6 +142,7 @@ module.exports = {
     listar,
     crear,
     actualizar,
+    eliminar,
     crearServicio,
     actualizarServicio,
     consultarDisponibilidad,

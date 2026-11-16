@@ -22,6 +22,23 @@ export default function ModalInstalacion({ instalacion, onCerrar, onGuardada }) 
   });
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [borrando, setBorrando] = useState(false); // muestra la confirmación
+  const [confirmacion, setConfirmacion] = useState('');
+  const [eliminando, setEliminando] = useState(false);
+  const nombreCoincide = editando && confirmacion.trim() === instalacion.nombre;
+
+  async function eliminar() {
+    setError('');
+    setEliminando(true);
+    try {
+      const d = await instalacionesApi.eliminar(instalacion.id_instalacion, confirmacion.trim());
+      onGuardada(d.mensaje);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEliminando(false);
+    }
+  }
 
   const cambiar = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
 
@@ -129,6 +146,49 @@ export default function ModalInstalacion({ instalacion, onCerrar, onGuardada }) 
             {guardando ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
+
+        {editando && (
+          <div className="detalle__seccion" style={{ marginTop: 24 }}>
+            <h3 className="detalle__titulo">Eliminar instalación</h3>
+            {!borrando ? (
+              <>
+                <p className="caja__nota" style={{ margin: '0 0 12px' }}>
+                  Solo se puede eliminar si nunca tuvo reservas ni visitas. Si ya tiene historial, márquela como Inactiva.
+                </p>
+                <button type="button" className="boton boton--peligro boton--chico" onClick={() => setBorrando(true)}>
+                  Eliminar instalación
+                </button>
+              </>
+            ) : (
+              <div className="confirmacion">
+                <p>
+                  Esto borra <strong>{instalacion.nombre}</strong>, sus servicios y sus bloqueos. No se puede deshacer.
+                </p>
+                <label htmlFor="ins-confirmar" className="campo__etiqueta" style={{ display: 'block', margin: '12px 0 6px' }}>
+                  Escriba «{instalacion.nombre}» para confirmar
+                </label>
+                <input
+                  id="ins-confirmar"
+                  className="campo__input"
+                  autoComplete="off"
+                  value={confirmacion}
+                  onChange={(e) => setConfirmacion(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+                />
+                <div className="confirmacion__botones">
+                  <button type="button" className="boton boton--secundario boton--chico"
+                    onClick={() => { setBorrando(false); setConfirmacion(''); }}>
+                    No, volver
+                  </button>
+                  <button type="button" className="boton boton--peligro boton--chico"
+                    disabled={!nombreCoincide || eliminando} onClick={eliminar}>
+                    {eliminando ? 'Eliminando…' : 'Eliminar definitivamente'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </form>
     </Modal>
   );

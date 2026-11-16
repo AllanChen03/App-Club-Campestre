@@ -194,6 +194,48 @@ async function actualizarInstalacion(idInstalacion, datos) {
     return buscarInstalacion(idInstalacion);
 }
 
+// Elimina una instalación. Exige escribir su nombre exacto como confirmación.
+// Si ya tiene reservas o visitas, no se borra (se perdería el historial y los
+// cargos ligados): en ese caso se debe marcar como Inactiva.
+async function eliminarInstalacion(idInstalacion, confirmacion) {
+    const instalacion = await buscarInstalacion(idInstalacion);
+    if (!instalacion) throw new ErrorHttp(404, 'Instalación no encontrada');
+
+    if (typeof confirmacion !== 'string' || confirmacion.trim() !== instalacion.nombre) {
+        throw new ErrorHttp(400, 'Escriba el nombre exacto de la instalación para confirmar');
+    }
+
+    const contar = async (tabla) => {
+        const { count, error } = await supabaseAdmin
+            .from(tabla)
+            .select('*', { count: 'exact', head: true })
+            .eq('id_instalacion', idInstalacion);
+        if (error) throw new Error(error.message);
+        return count;
+    };
+
+    const [reservas, visitas] = await Promise.all([contar('reservas'), contar('visitas_invitados')]);
+    if (reservas || visitas) {
+        const partes = [
+            reservas && `${reservas} ${reservas === 1 ? 'reserva' : 'reservas'}`,
+            visitas && `${visitas} ${visitas === 1 ? 'visita de invitado' : 'visitas de invitados'}`
+        ].filter(Boolean).join(' y ');
+        throw new ErrorHttp(409,
+            `No se puede eliminar porque tiene ${partes} en su historial. Márquela como Inactiva para que ya no se pueda reservar`);
+    }
+
+    // Sin historial: se borran sus servicios y bloqueos, y después la instalación
+    for (const tabla of ['servicios_adicionales', 'bloqueos_instalaciones']) {
+        const { error } = await supabaseAdmin.from(tabla).delete().eq('id_instalacion', idInstalacion);
+        if (error) throw new Error(error.message);
+    }
+
+    const { error } = await supabaseAdmin.from('instalaciones').delete().eq('id_instalacion', idInstalacion);
+    if (error) throw new Error(error.message);
+
+    return instalacion.nombre;
+}
+
 // ---------------------- Servicios adicionales ----------------------
 
 function validarServicio(datos, parcial) {
@@ -269,6 +311,7 @@ module.exports = {
     buscarInstalacion,
     crearInstalacion,
     actualizarInstalacion,
+    eliminarInstalacion,
     crearServicio,
     actualizarServicio,
     maximoPersonas
