@@ -42,6 +42,7 @@ export default function App() {
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/reservas" element={pendiente('Reservas')} />
           <Route path="/invitados" element={pendiente('Invitados')} />
+<<<<<<< Updated upstream
           <Route path="/membresia" element={pendiente('Membresía')} />
           <Route path="/estado-cuenta" element={pendiente('Estado de cuenta')} />
 =======
