@@ -76,7 +76,7 @@ async function invitadosDelSocio(idSocio) {
     const [{ data: invitados, error: e1 }, { data: visitas, error: e2 }] = await Promise.all([
         supabaseAdmin
             .from('invitados')
-            .select('id_invitado, nombre_completo, cedula, telefono, relacion')
+            .select('id_invitado, nombre_completo, cedula, telefono, relacion, visitas_invitados(estado, id_reserva, fecha_creacion)')
             .eq('id_socio', idSocio)
             .order('nombre_completo', { ascending: true }),
         supabaseAdmin
@@ -92,8 +92,23 @@ async function invitadosDelSocio(idSocio) {
 
     const lista = visitas.map(formatearVisita);
 
+    // Si el socio canceló la visita de un invitado desde Invitados y no le queda
+    // ninguna otra, el invitado se considera eliminado y ya no se ofrece en las reservas.
+    // (Si la visita se canceló porque se canceló una reserva, el invitado sigue disponible.)
+    const eliminado = (i) => {
+        const visitas = [...(i.visitas_invitados ?? [])]
+            .sort((a, b) => String(b.fecha_creacion).localeCompare(String(a.fecha_creacion)));
+        return visitas.length > 0 &&
+            visitas.every((v) => v.estado === 'Cancelada') &&
+            visitas[0].id_reserva === null;
+    };
+
+    const vigentes = invitados
+        .filter((i) => !eliminado(i))
+        .map(({ visitas_invitados: _visitas, ...i }) => i);
+
     return {
-        invitados,
+        invitados: vigentes,
         proximas: lista.filter((v) => v.estado === 'Programada' && v.fecha_visita >= hoy),
         anteriores: lista.filter((v) => !(v.estado === 'Programada' && v.fecha_visita >= hoy)).reverse()
     };

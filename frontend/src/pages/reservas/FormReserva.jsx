@@ -128,6 +128,16 @@ export default function FormReserva() {
     ? original.invitados.length : 0;
   const cupoLibre = cupo ? cupo.restantes + yaEnReserva : 0;
 
+  // Por qué no se pueden agregar más invitados (null si sí se puede)
+  let motivoBloqueo = null;
+  if (elegidos.length >= personas - 1) {
+    motivoBloqueo = personas <= 1
+      ? 'Para llevar invitados, aumente el número de personas: usted cuenta como 1.'
+      : `Con ${personas} personas cabe${personas - 1 === 1 ? '' : 'n'} hasta ${plural(personas - 1, 'invitado', 'invitados')}. Aumente el número de personas para agregar otro.`;
+  } else if (cupo && elegidos.length >= cupoLibre) {
+    motivoBloqueo = `Ya usó su cupo de invitados de ${nombreMes(fecha)}.`;
+  }
+
   function alternarInvitado(idInvitado) {
     setElegidos((lista) => (lista.includes(idInvitado)
       ? lista.filter((x) => x !== idInvitado)
@@ -304,23 +314,32 @@ export default function FormReserva() {
               {misInvitados.length === 0 ? (
                 <p className="campo__ayuda">Todavía no ha registrado invitados.</p>
               ) : (
-                <div className="opciones">
-                  {misInvitados.map((i) => (
-                    <label key={i.id_invitado} className="opcion">
-                      <input
-                        type="checkbox"
-                        checked={elegidos.includes(i.id_invitado)}
-                        disabled={!elegidos.includes(i.id_invitado) &&
-                          (elegidos.length >= cupoLibre || elegidos.length >= personas - 1)}
-                        onChange={() => alternarInvitado(i.id_invitado)}
-                      />
-                      <span className="opcion__texto">
-                        {i.nombre_completo}
-                        <span className="opcion__sub">{i.relacion}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  {motivoBloqueo && misInvitados.some((i) => !elegidos.includes(i.id_invitado)) && (
+                    <p className="opciones__aviso" id="invitados-aviso">{motivoBloqueo}</p>
+                  )}
+                  <div className="opciones">
+                    {misInvitados.map((i) => {
+                      const marcado = elegidos.includes(i.id_invitado);
+                      const bloqueado = !marcado && Boolean(motivoBloqueo);
+                      return (
+                        <label key={i.id_invitado} className={`opcion ${bloqueado ? 'opcion--bloqueada' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={marcado}
+                            disabled={bloqueado}
+                            aria-describedby={bloqueado ? 'invitados-aviso' : undefined}
+                            onChange={() => alternarInvitado(i.id_invitado)}
+                          />
+                          <span className="opcion__texto">
+                            {i.nombre_completo}
+                            <span className="opcion__sub">{i.relacion}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
               )}
               <Link to="/invitados" className="enlace" style={{ display: 'inline-block', marginTop: 10 }}>
                 + Registrar invitado

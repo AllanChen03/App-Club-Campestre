@@ -171,3 +171,12 @@
   .formulario-linea { grid-template-columns: 1fr; }
   .pestanas-reservas { gap: 20px; }
 }
+
+/* Opciones que no se pueden elegir (por ejemplo, invitados que no caben) */
+.opciones__aviso {
+  margin-bottom: 8px; padding: 8px 12px; border-radius: 8px;
+  background: var(--aviso-fondo); color: var(--aviso); font-size: 13.5px;
+}
+.opcion--bloqueada { background: #f4f2ee; border-style: dashed; color: #8d8f8a; cursor: not-allowed; }
+.opcion--bloqueada input { cursor: not-allowed; }
+.opcion--bloqueada .opcion__sub { color: #a3a5a0; }
