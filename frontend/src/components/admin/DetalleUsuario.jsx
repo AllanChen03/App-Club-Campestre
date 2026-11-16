@@ -59,6 +59,7 @@ export default function DetalleUsuario({ id, onCerrar, onCambio, onEliminado }) 
   const [confirmar, setConfirmar] = useState(null); // estado destino o 'restablecer'
   const [borrando, setBorrando] = useState(false);
   const [confirmacionNombre, setConfirmacionNombre] = useState('');
+  const [historial, setHistorial] = useState(null); // lo que el socio tiene registrado
 
   useEffect(() => {
     setUsuario(null);
@@ -122,11 +123,23 @@ export default function DetalleUsuario({ id, onCerrar, onCambio, onEliminado }) 
     }
   }
 
+  async function abrirEliminar() {
+    setBorrando(true);
+    setHistorial(null);
+    try {
+      const { resumen } = await usuariosApi.historialSocio(id);
+      setHistorial(resumen ?? { pagos: 0, reservas: 0, visitas: 0, cargos: 0, invitados: 0 });
+    } catch (err) {
+      setAviso({ tipo: 'error', mensaje: err.message });
+      setBorrando(false);
+    }
+  }
+
   async function eliminar() {
     setOcupado(true);
     setAviso(null);
     try {
-      const { mensaje } = await usuariosApi.eliminar(id, confirmacionNombre.trim());
+      const { mensaje } = await usuariosApi.eliminar(id, confirmacionNombre.trim(), conHistorial);
       onEliminado?.(id, mensaje);
     } catch (err) {
       setAviso({ tipo: 'error', mensaje: err.message });
@@ -142,6 +155,14 @@ export default function DetalleUsuario({ id, onCerrar, onCambio, onEliminado }) 
   const membresia = usuario?.socio?.membresia;
   const esSocio = usuario?.roles?.nombre === ROL_SOCIO;
   const nombreCoincide = usuario && confirmacionNombre.trim() === usuario.nombre_completo;
+  const conHistorial = Boolean(historial && (historial.pagos || historial.reservas || historial.visitas));
+  const listaHistorial = historial ? [
+    [historial.reservas, 'reserva', 'reservas'],
+    [historial.visitas, 'visita de invitado', 'visitas de invitados'],
+    [historial.pagos, 'pago', 'pagos'],
+    [historial.cargos, 'cargo', 'cargos'],
+    [historial.invitados, 'invitado registrado', 'invitados registrados']
+  ].filter(([n]) => n > 0).map(([n, uno, varios]) => `${n} ${n === 1 ? uno : varios}`) : [];
 
   return (
     <Modal titulo="Detalle del usuario" onCerrar={onCerrar} lateral>
@@ -280,17 +301,31 @@ export default function DetalleUsuario({ id, onCerrar, onCambio, onEliminado }) 
               {!borrando ? (
                 <>
                   <p className="caja__nota" style={{ margin: '0 0 12px' }}>
-                    Solo se puede eliminar si nunca tuvo pagos, reservas ni visitas de invitados. Si ya tiene historial, márquelo como Inactivo.
+                    Si el socio solo se dio de baja, es mejor marcarlo como Inactivo: así se conservan sus pagos y reservas en los reportes.
                   </p>
-                  <button type="button" className="boton boton--peligro boton--chico" onClick={() => setBorrando(true)}>
+                  <button type="button" className="boton boton--peligro boton--chico" onClick={abrirEliminar}>
                     Eliminar socio
                   </button>
                 </>
+              ) : !historial ? (
+                <p className="cargando">Revisando lo que tiene registrado…</p>
               ) : (
                 <div className="confirmacion">
-                  <p>
-                    Esto borra la cuenta de <strong>{usuario.nombre_completo}</strong>, su membresía, beneficiarios, cargos e invitados. No se puede deshacer.
-                  </p>
+                  {conHistorial ? (
+                    <>
+                      <p>
+                        <strong>{usuario.nombre_completo} tiene historial en el club:</strong> {listaHistorial.join(', ')}.
+                      </p>
+                      <p style={{ marginTop: 8 }}>
+                        Se borrará <strong>todo</strong>: la cuenta, la membresía, beneficiarios, invitados, reservas, visitas, cargos y pagos.
+                        Sus pagos dejarán de aparecer en Cobros y en los reportes. No se puede deshacer.
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      Esto borra la cuenta de <strong>{usuario.nombre_completo}</strong>, su membresía, beneficiarios{listaHistorial.length ? `, ${listaHistorial.join(', ')}` : ''}. No se puede deshacer.
+                    </p>
+                  )}
                   <label htmlFor="socio-confirmar" className="campo__etiqueta" style={{ display: 'block', margin: '12px 0 6px' }}>
                     Escriba «{usuario.nombre_completo}» para confirmar
                   </label>
@@ -303,12 +338,12 @@ export default function DetalleUsuario({ id, onCerrar, onCambio, onEliminado }) 
                   />
                   <div className="confirmacion__botones">
                     <button type="button" className="boton boton--secundario boton--chico"
-                      onClick={() => { setBorrando(false); setConfirmacionNombre(''); }} disabled={ocupado}>
+                      onClick={() => { setBorrando(false); setConfirmacionNombre(''); setHistorial(null); }} disabled={ocupado}>
                       No, volver
                     </button>
                     <button type="button" className="boton boton--peligro boton--chico"
                       disabled={!nombreCoincide || ocupado} onClick={eliminar}>
-                      {ocupado ? 'Eliminando…' : 'Eliminar definitivamente'}
+                      {ocupado ? 'Eliminando…' : conHistorial ? 'Eliminar con todo su historial' : 'Eliminar definitivamente'}
                     </button>
                   </div>
                 </div>
