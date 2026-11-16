@@ -34,6 +34,12 @@ const SELECT_DETALLE = `
     cargos(id_cargo, monto, estado)
 `;
 
+// La base rechaza reservas que chocan (trigger validar_choque_reserva, código 23P01).
+// Pasa cuando dos personas reservan el mismo turno al mismo tiempo.
+function errorDeGuardado(error) {
+    return error?.code === '23P01' ? new ErrorHttp(409, error.message) : new Error(error.message);
+}
+
 const codigo = (id) => `R-${String(id).padStart(4, '0')}`;
 
 function formatear(r) {
@@ -121,7 +127,7 @@ async function cambiarEstado(reserva, nuevo, idUsuario, motivo = null) {
         .select('id_reserva')
         .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    if (error) throw errorDeGuardado(error);
     if (!data) throw new ErrorHttp(409, 'La reserva cambió mientras tanto. Recargue e intente de nuevo');
 
     await registrarHistorial(reserva.id_reserva, reserva.estado, nuevo, idUsuario, motivo);
@@ -513,7 +519,7 @@ async function crearReserva(socio, body) {
         .select('id_reserva')
         .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw errorDeGuardado(error);
 
     await guardarServicios(data.id_reserva, servicios);
     await guardarVisitas(data.id_reserva, s, s.id_instalacion);
@@ -556,7 +562,7 @@ async function modificarReserva(idReserva, body, { socio = null, idUsuario, esAd
         .select('id_reserva')
         .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    if (error) throw errorDeGuardado(error);
     if (!data) throw new ErrorHttp(409, 'La reserva cambió mientras tanto. Recargue e intente de nuevo');
 
     await guardarServicios(idReserva, servicios);
