@@ -14,6 +14,13 @@ import InicioSegunRol from './components/InicioSegunRol';
 import AppLayout from './components/AppLayout';
 import AdminLayout from './components/AdminLayout';
 import { ROLES_ADMIN, ROL_SOCIO, rolesDeSeccion } from './utils/roles';
+<<<<<<< Updated upstream
+=======
+import EstadoCuenta from './components/EstadoCuenta';
+import { leerSesion } from './api/cliente';
+import MiMembresia from './pages/MiMembresia';
+import MembresiasAdmin from './pages/admin/MembresiasAdmin';
+>>>>>>> Stashed changes
 
 // Secciones que corresponden a los módulos de otros integrantes
 const pendiente = (titulo, volver) => <Proximamente titulo={titulo} volver={volver} />;
@@ -37,6 +44,10 @@ export default function App() {
           <Route path="/invitados" element={pendiente('Invitados')} />
           <Route path="/membresia" element={pendiente('Membresía')} />
           <Route path="/estado-cuenta" element={pendiente('Estado de cuenta')} />
+=======
+          <Route path="/membresia" element={<MiMembresia />} />
+          <Route path="/estado-cuenta" element={<VistaEstadoCuenta />} />
+>>>>>>> Stashed changes
         </Route>
       </Route>
 
@@ -58,7 +69,6 @@ export default function App() {
             />
           </Route>
           {[
-            ['membresias', 'Membresías'],
             ['instalaciones', 'Instalaciones'],
             ['invitados', 'Invitados del día'],
             ['cobros', 'Cobros'],
@@ -68,6 +78,24 @@ export default function App() {
               <Route path={ruta} element={pendiente(titulo, '/admin')} />
             </Route>
           ))}
+<<<<<<< Updated upstream
+=======
+
+          <Route element={<RutaProtegida roles={rolesDeSeccion('membresias')} />}>
+           <Route path="membresias" element={<MembresiasAdmin />} />
+          </Route>
+
+          {/* Módulo de Cobros conectado al componente real */}
+          <Route element={<RutaProtegida roles={rolesDeSeccion('cobros')} />}>
+            <Route path="cobros" element={<Cobros />} />
+          </Route>
+
+          {/* 2. Ruta específica de Notificaciones conectada al componente real */}
+          <Route element={<RutaProtegida roles={rolesDeSeccion('notificaciones')} />}>
+            <Route path="notificaciones" element={<Notificaciones />} />
+          </Route>
+
+>>>>>>> Stashed changes
         </Route>
       </Route>
 

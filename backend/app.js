@@ -3,6 +3,11 @@ const express = require('express');
 const cors = require('cors');
 
 const authRoutes = require('./src/routes/authRoutes');
+<<<<<<< Updated upstream
+=======
+const usuariosRoutes = require('./src/routes/usuariosRoutes');
+const membresiasRoutes = require('./src/routes/membresiasRoutes');
+>>>>>>> Stashed changes
 
 const usuariosRoutes = require('./src/routes/usuariosRoutes');
 
@@ -21,5 +26,11 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuariosRoutes);
+<<<<<<< Updated upstream
+=======
+app.use('/api/membresias', membresiasRoutes);
+app.use('/api/finanzas', finanzasRoutes);
+app.use('/api/notificaciones', notificacionesRoutes);
+>>>>>>> Stashed changes
 
 module.exports = app;
