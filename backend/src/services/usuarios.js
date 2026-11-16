@@ -254,6 +254,90 @@ function primero(valor) {
     return Array.isArray(valor) ? valor[0] : valor;
 }
 
+async function contar(tabla, columna, valor) {
+    const { count, error } = await supabaseAdmin
+        .from(tabla)
+        .select('*', { count: 'exact', head: true })
+        .eq(columna, valor);
+
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+}
+
+async function borrar(consulta) {
+    const { error } = await consulta;
+    if (!error) return;
+    if (error.code === '23503') {
+        throw new ErrorHttp(409, 'El socio tiene registros asociados y no se puede eliminar. Márquelo como Inactivo');
+    }
+    throw new Error(error.message);
+}
+
+// Elimina un socio que nunca usó el club: sin pagos, reservas ni visitas de
+// invitados. Si ya tiene historial se conserva (para los reportes y el estado
+// de cuenta) y se le indica al administrador que lo marque como Inactivo.
+// Se exige escribir el nombre completo como confirmación.
+async function eliminarSocio(idUsuario, confirmacion) {
+    const usuario = await buscarUsuario(idUsuario);
+    if (!usuario) throw new ErrorHttp(404, 'Usuario no encontrado');
+    if (ROLES_ADMIN.includes(usuario.roles?.nombre)) {
+        throw new ErrorHttp(403, 'Solo se pueden eliminar cuentas de socios');
+    }
+    if (String(confirmacion ?? '').trim() !== usuario.nombre_completo) {
+        throw new ErrorHttp(400, 'Escriba el nombre completo del socio para confirmar');
+    }
+
+    const { data: socio, error } = await supabaseAdmin
+        .from('socios')
+        .select('id_socio, numero_socio, membresias(id_membresia), invitados(id_invitado)')
+        .eq('id_usuario', idUsuario)
+        .maybeSingle();
+
+    if (error) throw new Error(error.message);
+
+    if (socio) {
+        const idsInvitados = socio.invitados.map((i) => i.id_invitado);
+        const [pagos, reservas, visitas] = await Promise.all([
+            contar('pagos', 'id_socio', socio.id_socio),
+            contar('reservas', 'id_socio', socio.id_socio),
+            idsInvitados.length
+                ? supabaseAdmin.from('visitas_invitados').select('*', { count: 'exact', head: true })
+                    .in('id_invitado', idsInvitados).then(({ count, error: e }) => {
+                        if (e) throw new Error(e.message);
+                        return count ?? 0;
+                    })
+                : 0
+        ]);
+
+        const historial = [];
+        if (pagos) historial.push(`${pagos} ${pagos === 1 ? 'pago' : 'pagos'}`);
+        if (reservas) historial.push(`${reservas} ${reservas === 1 ? 'reserva' : 'reservas'}`);
+        if (visitas) historial.push(`${visitas} ${visitas === 1 ? 'visita de invitado' : 'visitas de invitados'}`);
+        if (historial.length) {
+            throw new ErrorHttp(409,
+                `No se puede eliminar: tiene ${historial.join(', ')}. Para darlo de baja, márquelo como Inactivo`);
+        }
+
+        const idsMembresias = socio.membresias.map((m) => m.id_membresia);
+        if (idsMembresias.length) {
+            await borrar(supabaseAdmin.from('beneficiarios').delete().in('id_membresia', idsMembresias));
+            await borrar(supabaseAdmin.from('historial_membresias').delete().in('id_membresia', idsMembresias));
+            await borrar(supabaseAdmin.from('membresias').delete().in('id_membresia', idsMembresias));
+        }
+        await borrar(supabaseAdmin.from('cargos').delete().eq('id_socio', socio.id_socio));
+        await borrar(supabaseAdmin.from('invitados').delete().eq('id_socio', socio.id_socio));
+        await borrar(supabaseAdmin.from('socios').delete().eq('id_socio', socio.id_socio));
+    }
+
+    await borrar(supabaseAdmin.from('notificaciones').delete().eq('id_usuario', idUsuario));
+    await borrar(supabaseAdmin.from('usuarios').delete().eq('id_usuario', idUsuario));
+
+    const { error: errorAuth } = await supabaseAdmin.auth.admin.deleteUser(idUsuario);
+    if (errorAuth) console.error('Error al eliminar el usuario de Auth:', errorAuth.message);
+
+    return { nombre: usuario.nombre_completo, numero_socio: socio?.numero_socio ?? null };
+}
+
 module.exports = {
     listarUsuarios,
     buscarUsuario,
@@ -262,5 +346,6 @@ module.exports = {
     modificarUsuario,
     cambiarEstado,
     crearAdministrador,
-    listarRolesAdministrativos
+    listarRolesAdministrativos,
+    eliminarSocio
 };

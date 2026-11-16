@@ -161,7 +161,18 @@ export default function Usuarios({ roles, titulo, descripcion }) {
         )}
       </section>
 
-      {seleccionado && <DetalleUsuario id={seleccionado} onCerrar={cerrar} onCambio={actualizarFila} />}
+      {seleccionado && (
+        <DetalleUsuario
+          id={seleccionado}
+          onCerrar={cerrar}
+          onCambio={actualizarFila}
+          onEliminado={(idEliminado, mensaje) => {
+            setUsuarios((lista) => lista?.filter((x) => x.id_usuario !== idEliminado));
+            setAviso(mensaje);
+            cerrar();
+          }}
+        />
+      )}
 
       {nuevo && (
         <NuevoAdministrador

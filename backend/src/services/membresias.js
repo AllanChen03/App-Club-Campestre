@@ -1,6 +1,7 @@
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const { ErrorHttp } = require('../utils/ErrorHttp');
 const { ahora: ahoraCR, sumarDias } = require('../utils/horario');
+const { cobrosPendientes } = require('./estadoCuenta');
 
 const ESTADOS_MEMBRESIA = ['Pendiente', 'Activa', 'Vencida', 'Suspendida', 'Cancelada'];
 
@@ -478,7 +479,8 @@ function unAnoDespues(fecha) {
 
 // Cuando se termina de pagar la membresía de un socio que se acaba de registrar,
 // la membresía pasa a Activa por un año desde hoy y la cuenta se activa para que
-// pueda iniciar sesión. Una cuenta Suspendida no se toca: eso lo decide el admin.
+// pueda iniciar sesión si ya no debe nada. Una cuenta Suspendida no se toca:
+// eso lo decide el admin.
 async function activarMembresiaPagada(idSocio, idUsuarioAdmin) {
     const { data: membresia, error } = await supabaseAdmin
         .from('membresias')
@@ -526,6 +528,12 @@ async function activarMembresiaPagada(idSocio, idUsuarioAdmin) {
 
     const { data: socio } = await supabaseAdmin
         .from('socios').select('id_usuario').eq('id_socio', idSocio).single();
+
+    // La cuenta se activa solo si ya no debe nada (misma regla que al activar a mano)
+    const pendientes = await cobrosPendientes(idSocio);
+    if (pendientes.cantidad > 0) {
+        return { membresia: membresia.tipos_membresia?.nombre ?? '', vence, cuentaActivada: false };
+    }
 
     const { data: cuenta, error: ec } = await supabaseAdmin
         .from('usuarios')

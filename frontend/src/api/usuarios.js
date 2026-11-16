@@ -9,6 +9,7 @@ export const usuariosApi = {
   suspender: (id) => solicitud(`/api/usuarios/${id}/suspender`, opciones('PATCH')),
   activar: (id) => solicitud(`/api/usuarios/${id}/activar`, opciones('PATCH')),
   desactivar: (id) => solicitud(`/api/usuarios/${id}/desactivar`, opciones('PATCH')),
+  eliminar: (id, confirmacion) => solicitud(`/api/usuarios/${id}`, opciones('DELETE', { confirmacion })),
   restablecerContrasena: (id) =>
     solicitud(`/api/usuarios/${id}/restablecer-contrasena`, opciones('POST')),
   roles: () => solicitud('/api/usuarios/roles', { auth: true }),

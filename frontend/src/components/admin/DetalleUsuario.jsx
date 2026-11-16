@@ -9,33 +9,29 @@ import { ROL_GENERAL, ROL_SOCIO, nombreRol } from '../../utils/roles';
 
 const CAMPOS = ['nombre_completo', 'cedula', 'telefono', 'fecha_nacimiento', 'direccion'];
 
-// Acciones de estado: qué hacen y cuándo están disponibles
-const ACCIONES = {
-  suspender: {
-    texto: 'Suspender',
+// Estados de la cuenta: a qué acción del backend corresponde cada uno y qué implica
+const ESTADOS = {
+  Activo: {
+    accion: 'activar',
+    clase: 'boton--oscuro',
+    pregunta: 'Podrá iniciar sesión. Un socio necesita una membresía vigente y no tener cobros pendientes.'
+  },
+  Suspendido: {
+    accion: 'suspender',
     clase: 'boton--aviso',
     pregunta: 'No podrá iniciar sesión ni usar el club hasta que se active de nuevo. Se cancelarán sus reservas e invitados que aún no han llegado.',
-    disponible: (u, propia) => !propia && u.roles?.nombre === ROL_SOCIO && u.estado === 'Activo'
+    soloSocios: true
   },
-  activar: {
-    texto: 'Activar',
-    clase: 'boton--oscuro',
-    pregunta: 'Podrá volver a iniciar sesión. Los socios necesitan una membresía activa y vigente.',
-    disponible: (u) => ['Suspendido', 'Inactivo'].includes(u.estado)
-  },
-  desactivar: {
-    texto: 'Desactivar',
+  Inactivo: {
+    accion: 'desactivar',
     clase: 'boton--peligro',
-    pregunta: 'La cuenta quedará dada de baja y no podrá iniciar sesión. Si es socio, se cancelarán sus reservas e invitados que aún no han llegado.',
-    disponible: (u, propia) => !propia && ['Activo', 'Suspendido'].includes(u.estado)
-  },
-  restablecerContrasena: {
-    texto: 'Enviar correo para restablecer contraseña',
-    textoConfirmar: 'Sí, enviar correo',
-    clase: 'boton--secundario',
-    pregunta: 'Se enviará un enlace a su correo para que cree una nueva contraseña.',
-    disponible: (u) => u.roles?.nombre === ROL_SOCIO && Boolean(u.correo)
+    pregunta: 'La cuenta quedará dada de baja y no podrá iniciar sesión. Si es socio, se cancelarán sus reservas e invitados que aún no han llegado.'
   }
+};
+
+const RESTABLECER = {
+  texto: 'Enviar correo para restablecer contraseña',
+  pregunta: 'Se enviará un enlace a su correo para que cree una nueva contraseña.'
 };
 
 function formulario(u) {
@@ -52,7 +48,7 @@ function validar(f) {
   return e;
 }
 
-export default function DetalleUsuario({ id, onCerrar, onCambio }) {
+export default function DetalleUsuario({ id, onCerrar, onCambio, onEliminado }) {
   const { usuario: sesion } = useAuth();
   const [usuario, setUsuario] = useState(null);
   const [error, setError] = useState('');
@@ -60,7 +56,9 @@ export default function DetalleUsuario({ id, onCerrar, onCambio }) {
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [ocupado, setOcupado] = useState(false);
-  const [confirmar, setConfirmar] = useState(null);
+  const [confirmar, setConfirmar] = useState(null); // estado destino o 'restablecer'
+  const [borrando, setBorrando] = useState(false);
+  const [confirmacionNombre, setConfirmacionNombre] = useState('');
 
   useEffect(() => {
     setUsuario(null);
@@ -104,7 +102,8 @@ export default function DetalleUsuario({ id, onCerrar, onCambio }) {
     }
   }
 
-  async function ejecutar(accion) {
+  async function ejecutar(destino) {
+    const accion = destino === 'restablecer' ? 'restablecerContrasena' : ESTADOS[destino].accion;
     setOcupado(true);
     setAviso(null);
     try {
@@ -123,12 +122,26 @@ export default function DetalleUsuario({ id, onCerrar, onCambio }) {
     }
   }
 
+  async function eliminar() {
+    setOcupado(true);
+    setAviso(null);
+    try {
+      const { mensaje } = await usuariosApi.eliminar(id, confirmacionNombre.trim());
+      onEliminado?.(id, mensaje);
+    } catch (err) {
+      setAviso({ tipo: 'error', mensaje: err.message });
+      setOcupado(false);
+    }
+  }
+
   const cambiar = (campo) => (e) => {
     setForm((f) => ({ ...f, [campo]: e.target.value }));
     setErrores((er) => ({ ...er, [campo]: undefined }));
   };
 
   const membresia = usuario?.socio?.membresia;
+  const esSocio = usuario?.roles?.nombre === ROL_SOCIO;
+  const nombreCoincide = usuario && confirmacionNombre.trim() === usuario.nombre_completo;
 
   return (
     <Modal titulo="Detalle del usuario" onCerrar={onCerrar} lateral>
@@ -148,42 +161,64 @@ export default function DetalleUsuario({ id, onCerrar, onCambio }) {
 
           {aviso && <Alerta tipo={aviso.tipo}>{aviso.mensaje}</Alerta>}
 
-          {esGeneral && (
+          {esGeneral && !propia && (
           <section className="detalle__seccion">
-            <h3 className="detalle__titulo">Acciones</h3>
+            <h3 className="detalle__titulo">Estado de la cuenta</h3>
             {confirmar ? (
               <div className="confirmacion">
                 <p>
                   <strong>
-                    {confirmar === 'restablecerContrasena'
+                    {confirmar === 'restablecer'
                       ? `¿Enviar el correo a ${usuario.correo}?`
-                      : `¿${ACCIONES[confirmar].texto} la cuenta de ${usuario.nombre_completo}?`}
+                      : `¿Cambiar la cuenta de ${usuario.nombre_completo} a ${confirmar}?`}
                   </strong>{' '}
-                  {ACCIONES[confirmar].pregunta}
+                  {confirmar === 'restablecer' ? RESTABLECER.pregunta : ESTADOS[confirmar].pregunta}
                 </p>
                 <div className="confirmacion__botones">
                   <button type="button" className="boton boton--secundario boton--chico" onClick={() => setConfirmar(null)} disabled={ocupado}>
                     Cancelar
                   </button>
-                  <button type="button" className={`boton boton--chico ${ACCIONES[confirmar].clase}`} onClick={() => ejecutar(confirmar)} disabled={ocupado}>
-                    {ocupado ? 'Procesando…' : ACCIONES[confirmar].textoConfirmar ?? `Sí, ${ACCIONES[confirmar].texto.toLowerCase()}`}
+                  <button type="button"
+                    className={`boton boton--chico ${confirmar === 'restablecer' ? 'boton--secundario' : ESTADOS[confirmar].clase}`}
+                    onClick={() => ejecutar(confirmar)} disabled={ocupado}>
+                    {ocupado ? 'Procesando…' : confirmar === 'restablecer' ? 'Sí, enviar correo' : `Sí, cambiar a ${confirmar}`}
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="detalle__acciones">
-                {Object.entries(ACCIONES)
-                  .filter(([, a]) => a.disponible(usuario, propia))
-                  .map(([clave, a]) => (
-                    <button key={clave} type="button" className={`boton boton--chico ${a.clase}`} onClick={() => setConfirmar(clave)}>
-                      {a.texto}
+              <>
+                <div className="filtros__estados" role="group" aria-label="Estado de la cuenta">
+                  {Object.entries(ESTADOS)
+                    .filter(([, e]) => !e.soloSocios || esSocio)
+                    .map(([nombre]) => (
+                      <button
+                        key={nombre}
+                        type="button"
+                        className={`chip ${usuario.estado === nombre ? 'chip--activo' : ''}`}
+                        aria-pressed={usuario.estado === nombre}
+                        disabled={usuario.estado === nombre}
+                        onClick={() => setConfirmar(nombre)}
+                      >
+                        {nombre}
+                      </button>
+                    ))}
+                </div>
+                <p className="caja__nota" style={{ margin: '8px 0 0' }}>
+                  Toque un estado para cambiarlo.
+                  {esSocio && ' Para activar a un socio no debe tener cobros pendientes.'}
+                </p>
+                {esSocio && usuario.correo && (
+                  <div className="detalle__acciones" style={{ marginTop: 12 }}>
+                    <button type="button" className="boton boton--secundario boton--chico" onClick={() => setConfirmar('restablecer')}>
+                      {RESTABLECER.texto}
                     </button>
-                  ))}
-                {propia && <p className="caja__nota">Esta es su propia cuenta.</p>}
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </section>
           )}
+          {propia && <p className="caja__nota">Esta es su propia cuenta.</p>}
 
           <section className="detalle__seccion">
             <h3 className="detalle__titulo">Cuenta</h3>
@@ -236,6 +271,48 @@ export default function DetalleUsuario({ id, onCerrar, onCambio }) {
                 <div className="dato"><dt>Fecha de nacimiento</dt><dd>{fecha(usuario.fecha_nacimiento)}</dd></div>
                 <div className="dato"><dt>Dirección</dt><dd>{usuario.direccion}</dd></div>
               </dl>
+            </section>
+          )}
+
+          {esGeneral && esSocio && (
+            <section className="detalle__seccion">
+              <h3 className="detalle__titulo">Eliminar socio</h3>
+              {!borrando ? (
+                <>
+                  <p className="caja__nota" style={{ margin: '0 0 12px' }}>
+                    Solo se puede eliminar si nunca tuvo pagos, reservas ni visitas de invitados. Si ya tiene historial, márquelo como Inactivo.
+                  </p>
+                  <button type="button" className="boton boton--peligro boton--chico" onClick={() => setBorrando(true)}>
+                    Eliminar socio
+                  </button>
+                </>
+              ) : (
+                <div className="confirmacion">
+                  <p>
+                    Esto borra la cuenta de <strong>{usuario.nombre_completo}</strong>, su membresía, beneficiarios, cargos e invitados. No se puede deshacer.
+                  </p>
+                  <label htmlFor="socio-confirmar" className="campo__etiqueta" style={{ display: 'block', margin: '12px 0 6px' }}>
+                    Escriba «{usuario.nombre_completo}» para confirmar
+                  </label>
+                  <input
+                    id="socio-confirmar"
+                    className="campo__input"
+                    autoComplete="off"
+                    value={confirmacionNombre}
+                    onChange={(e) => setConfirmacionNombre(e.target.value)}
+                  />
+                  <div className="confirmacion__botones">
+                    <button type="button" className="boton boton--secundario boton--chico"
+                      onClick={() => { setBorrando(false); setConfirmacionNombre(''); }} disabled={ocupado}>
+                      No, volver
+                    </button>
+                    <button type="button" className="boton boton--peligro boton--chico"
+                      disabled={!nombreCoincide || ocupado} onClick={eliminar}>
+                      {ocupado ? 'Eliminando…' : 'Eliminar definitivamente'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </>

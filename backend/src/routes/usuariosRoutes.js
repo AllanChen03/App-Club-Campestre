@@ -9,7 +9,8 @@ const {
     desactivarCuenta,
     registrarAdministrador,
     restablecerContrasenaSocio,
-    rolesAdministrativos
+    rolesAdministrativos,
+    eliminarSocio
 } = require('../controllers/usuariosController');
 
 const { verificarToken } =
@@ -44,6 +45,7 @@ router.patch('/:id', soloGeneral, actualizarUsuario);
 router.patch('/:id/suspender', soloGeneral, suspenderCuenta);
 router.patch('/:id/activar', soloGeneral, activarCuenta);
 router.patch('/:id/desactivar', soloGeneral, desactivarCuenta);
+router.delete('/:id', soloGeneral, eliminarSocio);
 
 router.post('/:id/restablecer-contrasena', soloGeneral, restablecerContrasenaSocio);
 
