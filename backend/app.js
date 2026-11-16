@@ -16,6 +16,9 @@ const instalacionesRoutes = require('./src/routes/instalacionesRoutes');
 const reservasRoutes = require('./src/routes/reservasRoutes');
 const invitadosRoutes = require('./src/routes/invitadosRoutes');
 
+// Socios y membresías
+const membresiasRoutes = require('./src/routes/membresiasRoutes');
+
 const app = express();
 
 // Acepta el frontend configurado y, en desarrollo, cualquier dirección local
@@ -44,5 +47,6 @@ app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/instalaciones', instalacionesRoutes);
 app.use('/api/reservas', reservasRoutes);
 app.use('/api/invitados', invitadosRoutes);
+app.use('/api/membresias', membresiasRoutes);
 
 module.exports = app;

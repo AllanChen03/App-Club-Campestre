@@ -6,7 +6,6 @@ import RecuperarContrasena from './pages/RecuperarContrasena';
 import RestablecerContrasena from './pages/RestablecerContrasena';
 import Inicio from './pages/Inicio';
 import Perfil from './pages/Perfil';
-import Proximamente from './pages/Proximamente';
 import PanelAdmin from './pages/admin/PanelAdmin';
 import Usuarios from './pages/admin/Usuarios';
 import Notificaciones from './components/Notificaciones';
@@ -24,8 +23,8 @@ import Invitados from './pages/Invitados';
 import Instalaciones from './pages/admin/Instalaciones';
 import InvitadosDia from './pages/admin/InvitadosDia';
 import { leerSesion } from './api/cliente';
-
-const pendiente = (titulo, volver) => <Proximamente titulo={titulo} volver={volver} />;
+import MiMembresia from './pages/MiMembresia';
+import MembresiasAdmin from './pages/admin/MembresiasAdmin';
 
 const VistaEstadoCuenta = () => {
   const sesion = leerSesion();
@@ -54,7 +53,7 @@ export default function App() {
           <Route path="/reservas/:id" element={<DetalleReserva />} />
           <Route path="/reservas/:id/modificar" element={<FormReserva key="modificar" />} />
           <Route path="/invitados" element={<Invitados />} />
-          <Route path="/membresia" element={pendiente('Membresía')} />
+          <Route path="/membresia" element={<MiMembresia />} />
           <Route path="/estado-cuenta" element={<VistaEstadoCuenta />} />
         </Route>
       </Route>
@@ -77,14 +76,10 @@ export default function App() {
             />
           </Route>
 
-          {/* Módulos restantes con "Próximamente" */}
-          {[
-            ['membresias', 'Membresías']
-          ].map(([ruta, titulo]) => (
-            <Route key={ruta} element={<RutaProtegida roles={rolesDeSeccion(ruta)} />}>
-              <Route path={ruta} element={pendiente(titulo, '/admin')} />
-            </Route>
-          ))}
+          {/* Socios y membresías */}
+          <Route element={<RutaProtegida roles={rolesDeSeccion('membresias')} />}>
+            <Route path="membresias" element={<MembresiasAdmin />} />
+          </Route>
 
           {/* Reservas e instalaciones */}
           <Route element={<RutaProtegida roles={rolesDeSeccion('instalaciones')} />}>

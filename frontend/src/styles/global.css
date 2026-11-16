@@ -466,3 +466,30 @@ a.lateral__nombre:hover { color: var(--lima); }
   .modal { padding: 24px 18px; }
   .modal--lateral { border-radius: 18px 18px 0 0; margin: auto -16px -16px; max-height: 92vh; align-self: flex-end; }
 }
+
+/* ---------- Membresías, beneficiarios e historial ---------- */
+.insignia--activa { background: var(--exito-fondo); color: var(--exito); }
+.insignia--pendiente,
+.insignia--suspendida { background: var(--aviso-fondo); color: var(--aviso); }
+.insignia--vencida { background: var(--error-fondo); color: var(--error); }
+.insignia--cancelada { background: #eceae5; color: #5c5f5a; }
+
+.lista-detalle { display: flex; flex-direction: column; gap: 10px; }
+.lista-detalle__item {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--borde); border-radius: 12px;
+  background: var(--blanco);
+}
+.lista-detalle__item--suave { background: var(--crema); border-color: transparent; }
+.lista-detalle__info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lista-detalle__titulo { font-size: 14.5px; font-weight: 600; color: var(--texto); }
+.lista-detalle__sub { font-size: 13px; color: var(--texto-suave); }
+.lista-detalle__fecha { font-size: 12.5px; color: var(--texto-suave); white-space: nowrap; }
+
+.subformulario { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--borde); }
+.check-campo {
+  display: flex; align-items: center; gap: 8px;
+  margin: 4px 0 18px; font-size: 14px; color: var(--texto); cursor: pointer;
+}
+.check-campo input { accent-color: var(--verde); width: 16px; height: 16px; }
+.caja--completa { grid-column: 1 / -1; }
