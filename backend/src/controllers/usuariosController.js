@@ -9,6 +9,7 @@ const {
 } = require('../services/usuarios');
 
 const { recuperarContrasena } = require('../services/registro');
+const { cancelarReservasDelSocio } = require('../services/reservas');
 const { ROLES_ADMIN, ROL_SOCIO } = require('../utils/roles');
 
 const { responderError } = require('../utils/ErrorHttp');
@@ -110,6 +111,25 @@ async function actualizarUsuario(req, res) {
     }
 }
 
+// Al suspender o desactivar a un socio se liberan sus reservas e invitados futuros.
+// Si algo falla aquí, el cambio de estado ya quedó hecho: solo se avisa.
+async function liberarReservas(req, usuario, motivo) {
+    if (usuario.roles?.nombre !== ROL_SOCIO) return '';
+    try {
+        const { canceladas, visitas } = await cancelarReservasDelSocio(usuario.id_usuario, {
+            idUsuarioAdmin: req.usuarioAuth.id,
+            motivo
+        });
+        const partes = [];
+        if (canceladas.length) partes.push(`${canceladas.length} ${canceladas.length === 1 ? 'reserva' : 'reservas'}`);
+        if (visitas) partes.push(`${visitas} ${visitas === 1 ? 'visita de invitado' : 'visitas de invitados'}`);
+        return partes.length ? `. Se cancelaron ${partes.join(' y ')}` : '';
+    } catch (error) {
+        console.error('Error al cancelar reservas del socio:', error.message);
+        return '. No se pudieron cancelar sus reservas: revíselas en el calendario';
+    }
+}
+
 async function suspenderCuenta(req, res) {
     try {
         const { id } = req.params;
@@ -138,8 +158,10 @@ async function suspenderCuenta(req, res) {
 
         if (!resultado) return res.status(409).json(ESTADO_CAMBIO);
 
+        const extra = await liberarReservas(req, usuario, 'Cuenta del socio suspendida');
+
         return res.status(200).json({
-            mensaje: 'Usuario suspendido correctamente',
+            mensaje: `Usuario suspendido correctamente${extra}`,
             usuario: resultado
         });
 
@@ -208,8 +230,10 @@ async function desactivarCuenta(req, res) {
 
         if (!resultado) return res.status(409).json(ESTADO_CAMBIO);
 
+        const extra = await liberarReservas(req, usuario, 'Cuenta del socio desactivada');
+
         return res.status(200).json({
-            mensaje: 'Cuenta desactivada correctamente',
+            mensaje: `Cuenta desactivada correctamente${extra}`,
             usuario: resultado
         });
 
