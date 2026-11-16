@@ -343,7 +343,11 @@ async function validarInvitados(socio, s, idReserva = null) {
     const usados = await contarVisitasMes(socio.id_socio, s.fecha_reserva, { excluirReserva: idReserva });
     const limite = socio.membresia?.max_invitados ?? 0;
 
-    if (usados + s.invitados.length > limite) {
+    // Un invitado que ya tiene visita ese día no gasta otro espacio del cupo
+    const yaVienen = new Set((await visitasDelDia(s.invitados, s.fecha_reserva, idReserva)).map((v) => v.id_invitado));
+    const nuevos = s.invitados.filter((id) => !yaVienen.has(id)).length;
+
+    if (usados + nuevos > limite) {
         const quedan = Math.max(limite - usados, 0);
         throw new ErrorHttp(409,
             `Su membresía permite ${limite} invitados por mes. Le quedan ${quedan} para ese mes`);
@@ -362,7 +366,22 @@ async function guardarServicios(idReserva, servicios) {
     if (error) throw new Error(error.message);
 }
 
-// Deja las visitas de la reserva iguales a la lista de invitados
+// Visitas activas de estos invitados en una fecha que no son de esta reserva
+async function visitasDelDia(idsInvitados, fecha, idReserva = null) {
+    if (!idsInvitados.length) return [];
+    const { data, error } = await supabaseAdmin
+        .from('visitas_invitados')
+        .select('id_visita, id_invitado, id_reserva')
+        .in('id_invitado', idsInvitados)
+        .eq('fecha_visita', fecha)
+        .eq('estado', 'Programada');
+    if (error) throw new Error(error.message);
+    return data.filter((v) => v.id_reserva !== idReserva);
+}
+
+// Deja las visitas de la reserva iguales a la lista de invitados.
+// Si el invitado ya tenía una visita suelta ese día, se usa esa misma
+// (así no aparece dos veces en recepción ni gasta dos espacios del cupo).
 async function guardarVisitas(idReserva, s, idInstalacion) {
     const { data: actuales, error } = await supabaseAdmin
         .from('visitas_invitados')
@@ -373,7 +392,7 @@ async function guardarVisitas(idReserva, s, idInstalacion) {
     if (error) throw new Error(error.message);
 
     const quitar = actuales.filter((v) => !s.invitados.includes(v.id_invitado)).map((v) => v.id_visita);
-    const mantener = actuales.filter((v) => s.invitados.includes(v.id_invitado)).map((v) => v.id_visita);
+    const mantener = actuales.filter((v) => s.invitados.includes(v.id_invitado));
     const agregar = s.invitados.filter((id) => !actuales.some((v) => v.id_invitado === id));
 
     if (quitar.length) {
@@ -382,15 +401,36 @@ async function guardarVisitas(idReserva, s, idInstalacion) {
     if (mantener.length) {
         await supabaseAdmin.from('visitas_invitados')
             .update({ fecha_visita: s.fecha_reserva, id_instalacion: idInstalacion })
-            .in('id_visita', mantener);
+            .in('id_visita', mantener.map((v) => v.id_visita));
     }
-    if (agregar.length) {
-        const { error: e } = await supabaseAdmin.from('visitas_invitados').insert(agregar.map((id) => ({
-            id_invitado: id,
-            id_reserva: idReserva,
-            id_instalacion: idInstalacion,
-            fecha_visita: s.fecha_reserva
-        })));
+
+    // Visitas sueltas (sin reserva) de estos invitados en la fecha de la reserva
+    const sueltas = (await visitasDelDia(s.invitados, s.fecha_reserva, idReserva))
+        .filter((v) => v.id_reserva === null);
+
+    const nuevas = [];
+    for (const id of agregar) {
+        const suelta = sueltas.find((v) => v.id_invitado === id);
+        if (suelta) {
+            const { error: e } = await supabaseAdmin.from('visitas_invitados')
+                .update({ id_reserva: idReserva, id_instalacion: idInstalacion })
+                .eq('id_visita', suelta.id_visita);
+            if (e) throw new Error(e.message);
+        } else {
+            nuevas.push({ id_invitado: id, id_reserva: idReserva, id_instalacion: idInstalacion, fecha_visita: s.fecha_reserva });
+        }
+    }
+
+    // Si la reserva cambió de fecha y el invitado ya tenía una visita suelta ese día, sobra
+    const duplicadas = sueltas
+        .filter((v) => mantener.some((m) => m.id_invitado === v.id_invitado))
+        .map((v) => v.id_visita);
+    if (duplicadas.length) {
+        await supabaseAdmin.from('visitas_invitados').update({ estado: 'Cancelada' }).in('id_visita', duplicadas);
+    }
+
+    if (nuevas.length) {
+        const { error: e } = await supabaseAdmin.from('visitas_invitados').insert(nuevas);
         if (e) throw new Error(e.message);
     }
 }

@@ -18,7 +18,7 @@ async function contarVisitasMes(idSocio, fecha, { excluirReserva = null } = {}) 
 
     let consulta = supabaseAdmin
         .from('visitas_invitados')
-        .select('id_visita, id_reserva, invitados!inner(id_socio)')
+        .select('id_visita, id_reserva, id_invitado, fecha_visita, invitados!inner(id_socio)')
         .eq('invitados.id_socio', idSocio)
         .neq('estado', 'Cancelada')
         .gte('fecha_visita', inicio)
@@ -27,7 +27,11 @@ async function contarVisitasMes(idSocio, fecha, { excluirReserva = null } = {}) 
     const { data, error } = await consulta;
     if (error) throw new Error(error.message);
 
-    return data.filter((v) => !excluirReserva || v.id_reserva !== excluirReserva).length;
+    // Un mismo invitado el mismo día cuenta una sola vez, aunque tenga varias visitas
+    const unicas = new Set(data
+        .filter((v) => !excluirReserva || v.id_reserva !== excluirReserva)
+        .map((v) => `${v.id_invitado}|${v.fecha_visita}`));
+    return unicas.size;
 }
 
 async function cupoDelMes(socio, fecha = h.ahora().fecha) {
@@ -245,7 +249,17 @@ async function invitadosDelDia(fecha) {
 
     if (error) throw new Error(error.message);
 
-    return data.map((v) => ({
+    // Una fila por invitado: si tiene varias visitas ese día, se juntan sus instalaciones
+    const porInvitado = new Map();
+    data.forEach((v) => {
+        const previa = porInvitado.get(v.invitados.id_invitado);
+        if (!previa) return porInvitado.set(v.invitados.id_invitado, v);
+        const nombres = (x) => x.instalaciones?.nombre ?? x.reservas?.instalaciones?.nombre ?? null;
+        const juntas = [...new Set([nombres(previa), nombres(v)].filter(Boolean))].join(' y ');
+        porInvitado.set(v.invitados.id_invitado, { ...previa, instalaciones: juntas ? { nombre: juntas } : null });
+    });
+
+    return [...porInvitado.values()].map((v) => ({
         ...formatearVisita(v),
         socio: {
             id_usuario: v.invitados?.socios?.id_usuario ?? null,
