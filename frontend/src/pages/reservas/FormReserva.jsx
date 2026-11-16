@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Alerta from '../../components/Alerta';
 import SelectorTurnos, { turnoDisponible } from '../../components/reservas/SelectorTurnos';
+import CampoNumero from '../../components/reservas/CampoNumero';
 import { instalacionesApi, invitadosApi, reservasApi } from '../../api/reservas';
 import { colones } from '../../utils/formato';
 import {
@@ -108,6 +109,11 @@ export default function FormReserva() {
   }
 
   const maximo = instalacion?.max_personas ?? 1;
+
+  // Al cambiar a una instalación con menos cupo, las personas se ajustan al nuevo máximo
+  useEffect(() => {
+    if (instalacion && personas > maximo) setPersonas(maximo);
+  }, [instalacion, maximo, personas]);
   const elegidosTurnos = seleccion && turnos ? turnos.slice(seleccion.desde, seleccion.hasta + 1) : [];
   const horarioValido = elegidosTurnos.length > 0 &&
     elegidosTurnos.every((t) => turnoDisponible(t, instalacion?.tipo_reserva, personas));
@@ -245,15 +251,7 @@ export default function FormReserva() {
             <div className="rejilla">
               <div className="campo">
                 <label htmlFor="personas" className="campo__etiqueta">Número de personas (máximo {maximo})</label>
-                <input
-                  id="personas"
-                  type="number"
-                  className="campo__input"
-                  min={1}
-                  max={maximo}
-                  value={personas}
-                  onChange={(e) => setPersonas(Math.max(1, Math.min(maximo, Number(e.target.value) || 1)))}
-                />
+                <CampoNumero id="personas" valor={personas} min={1} max={maximo} onCambiar={setPersonas} />
                 <p className="campo__ayuda">Incluyéndolo a usted y a sus invitados.</p>
               </div>
             </div>
@@ -281,16 +279,13 @@ export default function FormReserva() {
                           {s.descripcion && <span className="opcion__sub">{s.descripcion}</span>}
                         </label>
                         {marcado && (
-                          <input
-                            type="number"
+                          <CampoNumero
                             className="opcion__cantidad"
                             aria-label={`Cantidad de ${s.nombre}`}
+                            valor={servicios[s.id_servicio]}
                             min={1}
                             max={20}
-                            value={servicios[s.id_servicio]}
-                            onChange={(e) => setServicios((x) => ({
-                              ...x, [s.id_servicio]: Math.max(1, Math.min(20, Number(e.target.value) || 1))
-                            }))}
+                            onCambiar={(n) => setServicios((x) => ({ ...x, [s.id_servicio]: n }))}
                           />
                         )}
                         <span className="opcion__precio">{colones(s.precio)}</span>

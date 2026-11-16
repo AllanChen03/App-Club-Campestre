@@ -3,6 +3,7 @@ import Modal from '../Modal';
 import Alerta from '../Alerta';
 import HistorialReserva from '../reservas/HistorialReserva';
 import SelectorTurnos, { turnoDisponible } from '../reservas/SelectorTurnos';
+import CampoNumero from '../reservas/CampoNumero';
 import { instalacionesApi, reservasApi } from '../../api/reservas';
 import { colones } from '../../utils/formato';
 import {
@@ -73,8 +74,7 @@ function ModificarReserva({ reserva, instalacion, onGuardada, onCancelar }) {
         </div>
         <div className="campo">
           <label htmlFor="mod-personas" className="campo__etiqueta">Personas (máximo {maximo})</label>
-          <input id="mod-personas" type="number" className="campo__input" min={1} max={maximo} value={personas}
-            onChange={(e) => setPersonas(Math.max(1, Math.min(maximo, Number(e.target.value) || 1)))} />
+          <CampoNumero id="mod-personas" valor={personas} min={1} max={maximo} onCambiar={setPersonas} />
         </div>
       </div>
       {!turnos ? <p className="campo__ayuda">Cargando turnos…</p> : (
