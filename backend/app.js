@@ -23,12 +23,16 @@ const app = express();
 
 // Acepta el frontend configurado y, en desarrollo, cualquier dirección local
 // (localhost, 127.0.0.1 o *.localhost) para poder abrir una sesión por rol.
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+// FRONTEND_URL puede llevar varias direcciones separadas por coma.
+const FRONTENDS = (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')
+    .map((url) => url.trim().replace(/\/$/, ''))
+    .filter(Boolean);
 const ORIGEN_LOCAL = /^http:\/\/(([a-z0-9-]+\.)*localhost|127\.0\.0\.1|\[::1\]):\d+$/i;
 
 app.use(cors({
     origin(origen, responder) {
-        responder(null, !origen || origen === FRONTEND_URL || ORIGEN_LOCAL.test(origen));
+        responder(null, !origen || FRONTENDS.includes(origen) || ORIGEN_LOCAL.test(origen));
     }
 }));
 app.use(express.json());

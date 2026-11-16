@@ -1,19 +1,5 @@
 const { supabaseAdmin: supabase } = require('../config/supabaseAdmin');
-const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false, // true para 465, false para 587
-  family: 4,     // <--- FUERZA IPv4 Y EVITA EL ERROR ECONNREFUSED
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  },
-  tls: {
-    rejectUnauthorized: false // Evita problemas con certificados autofirmados en local
-  }
-});
+const { enviarCorreo } = require('../config/correo');
 
 // Obtener todas las plantillas
 const obtenerPlantillas = async (req, res) => {
@@ -102,13 +88,8 @@ const enviarNotificacion = async (req, res) => {
     if (errInsert) throw errInsert;
     idNotificacion = creada.id_notificacion;
 
-    // 2) Enviar el correo con Nodemailer
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"Club Valle Alto" <no-reply@club.com>',
-      to: correo,
-      subject: asuntoFinal,
-      text: contenidoFinal
-    });
+    // 2) Enviar el correo (Brevo o SMTP, según el .env)
+    await enviarCorreo({ para: correo, asunto: asuntoFinal, texto: contenidoFinal });
 
     // 3) Marcar como Enviada
     const { data: enviada, error: errUpdate } = await supabase
