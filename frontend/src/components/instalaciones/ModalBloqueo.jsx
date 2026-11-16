@@ -3,7 +3,10 @@ import Modal from '../Modal';
 import Alerta from '../Alerta';
 import Campo from '../Campo';
 import { instalacionesApi, reservasApi } from '../../api/reservas';
-import { diasEntre, fechaConDia, hoy, marcaLocal, plural, rangoHoras } from '../../utils/reservas';
+import { diasEntre, fechaConDia, hora, hoy, marcaLocal, plural, rangoHoras } from '../../utils/reservas';
+
+// Horas en punto del día; se muestran como «8:00 a. m.» para que no se confundan
+const HORAS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`);
 
 const MAX_DIAS_REVISION = 62; // lo que permite consultar el listado de reservas
 
@@ -13,10 +16,16 @@ export default function ModalBloqueo({ instalaciones, fechaInicial, onCerrar, on
   const dia = fechaInicial && fechaInicial >= hoy() ? fechaInicial : hoy();
   const [form, setForm] = useState({
     id_instalacion: String(instalaciones[0]?.id_instalacion ?? ''),
-    fecha_inicio: `${dia}T08:00`,
-    fecha_fin: `${dia}T12:00`,
+    fecha_desde: dia,
+    hora_desde: '08:00',
+    fecha_hasta: dia,
+    hora_hasta: '12:00',
     motivo: ''
   });
+
+  // Fecha y hora juntas, en el formato que espera el backend
+  const fechaInicio = `${form.fecha_desde}T${form.hora_desde}`;
+  const fechaFin = `${form.fecha_hasta}T${form.hora_hasta}`;
   const [error, setError] = useState('');
   const [confirmar, setConfirmar] = useState(false);
   const [revisando, setRevisando] = useState(false);
@@ -28,15 +37,22 @@ export default function ModalBloqueo({ instalaciones, fechaInicial, onCerrar, on
     setConfirmar(false);
   };
 
+  // Si el inicio pasa después del fin, el fin se mueve al mismo día
+  const cambiarDesde = (e) => {
+    const valor = e.target.value;
+    setForm((f) => ({ ...f, fecha_desde: valor, fecha_hasta: f.fecha_hasta < valor ? valor : f.fecha_hasta }));
+    setConfirmar(false);
+  };
+
   // Reservas pendientes o confirmadas que caen dentro del bloqueo
   async function buscarAfectadas() {
-    const desde = form.fecha_inicio.slice(0, 10);
-    const hasta = form.fecha_fin.slice(0, 10);
+    const desde = fechaInicio.slice(0, 10);
+    const hasta = fechaFin.slice(0, 10);
     if (diasEntre(desde, hasta) > MAX_DIAS_REVISION) return null;
 
     const { reservas } = await reservasApi.listar({ desde, hasta, id_instalacion: form.id_instalacion });
-    const inicio = `${form.fecha_inicio}:00`;
-    const fin = `${form.fecha_fin}:00`;
+    const inicio = `${fechaInicio}:00`;
+    const fin = `${fechaFin}:00`;
     return reservas.filter((r) =>
       ['Pendiente', 'Confirmada'].includes(r.estado) &&
       `${r.fecha_reserva}T${r.hora_inicio}` < fin &&
@@ -47,7 +63,7 @@ export default function ModalBloqueo({ instalaciones, fechaInicial, onCerrar, on
     e.preventDefault();
     setError('');
     if (!form.motivo.trim()) return setError('Escriba el motivo del bloqueo.');
-    if (form.fecha_fin <= form.fecha_inicio) return setError('El fin debe ser posterior al inicio.');
+    if (fechaFin <= fechaInicio) return setError('El fin debe ser posterior al inicio.');
     if (!confirmar) {
       setRevisando(true);
       try {
@@ -64,8 +80,8 @@ export default function ModalBloqueo({ instalaciones, fechaInicial, onCerrar, on
     try {
       const d = await instalacionesApi.crearBloqueo({
         id_instalacion: Number(form.id_instalacion),
-        fecha_inicio: form.fecha_inicio,
-        fecha_fin: form.fecha_fin,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
         motivo: form.motivo.trim()
       });
       onCreado(d);
@@ -95,8 +111,20 @@ export default function ModalBloqueo({ instalaciones, fechaInicial, onCerrar, on
           </select>
         </div>
         <div className="rejilla">
-          <Campo etiqueta="Desde" tipo="datetime-local" step={3600} value={form.fecha_inicio} onChange={cambiar('fecha_inicio')} />
-          <Campo etiqueta="Hasta" tipo="datetime-local" step={3600} value={form.fecha_fin} onChange={cambiar('fecha_fin')} />
+          <Campo etiqueta="Desde el día" tipo="date" min={hoy()} value={form.fecha_desde} onChange={cambiarDesde} />
+          <div className="campo">
+            <label htmlFor="bl-hora-desde" className="campo__etiqueta">A partir de las</label>
+            <select id="bl-hora-desde" className="campo__select-nativo" value={form.hora_desde} onChange={cambiar('hora_desde')}>
+              {HORAS.map((h) => <option key={h} value={h}>{hora(h)}</option>)}
+            </select>
+          </div>
+          <Campo etiqueta="Hasta el día" tipo="date" min={form.fecha_desde} value={form.fecha_hasta} onChange={cambiar('fecha_hasta')} />
+          <div className="campo">
+            <label htmlFor="bl-hora-hasta" className="campo__etiqueta">Hasta las</label>
+            <select id="bl-hora-hasta" className="campo__select-nativo" value={form.hora_hasta} onChange={cambiar('hora_hasta')}>
+              {HORAS.map((h) => <option key={h} value={h}>{hora(h)}</option>)}
+            </select>
+          </div>
         </div>
         <Campo etiqueta="Motivo" placeholder="Ejemplo: mantenimiento de la piscina" maxLength={200}
           value={form.motivo} onChange={cambiar('motivo')} />
@@ -104,8 +132,8 @@ export default function ModalBloqueo({ instalaciones, fechaInicial, onCerrar, on
         {confirmar && (
           <Alerta tipo="aviso" titulo="¿Crear el bloqueo?">
             <span style={{ display: 'block' }}>
-              {nombreInstalacion} · {marcaLocal(form.fecha_inicio)} a {marcaLocal(form.fecha_fin)}
-              {' '}({fechaConDia(form.fecha_inicio.slice(0, 10)).split(' ')[0].toLowerCase()})
+              {nombreInstalacion} · {marcaLocal(fechaInicio)} a {marcaLocal(fechaFin)}
+              {' '}({fechaConDia(fechaInicio.slice(0, 10)).split(' ')[0].toLowerCase()})
             </span>
             {afectadas === null && (
               <span style={{ display: 'block', marginTop: 6 }}>
