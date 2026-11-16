@@ -254,6 +254,142 @@ function primero(valor) {
     return Array.isArray(valor) ? valor[0] : valor;
 }
 
+async function contar(tabla, columna, valor) {
+    const { count, error } = await supabaseAdmin
+        .from(tabla)
+        .select('*', { count: 'exact', head: true })
+        .eq(columna, valor);
+
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+}
+
+async function borrar(consulta) {
+    const { error } = await consulta;
+    if (!error) return;
+    if (error.code === '23503') {
+        console.error('Registro relacionado al eliminar socio:', error.message, error.details ?? '');
+        throw new ErrorHttp(409, 'Quedaron registros del socio que no se pudieron borrar. Revise el detalle en la consola del servidor');
+    }
+    throw new Error(error.message);
+}
+
+// Lo que un socio tiene registrado en el club (para decidir cómo eliminarlo)
+async function historialSocio(idUsuario) {
+    const { data: socio, error } = await supabaseAdmin
+        .from('socios')
+        .select(`id_socio, numero_socio, membresias(id_membresia), invitados(id_invitado),
+            reservas!reservas_id_socio_fkey(id_reserva), pagos(id_pago), cargos(id_cargo)`)
+        .eq('id_usuario', idUsuario)
+        .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!socio) return null;
+
+    const idsInvitados = socio.invitados.map((i) => i.id_invitado);
+    const idsReservas = socio.reservas.map((r) => r.id_reserva);
+    let visitas = [];
+    if (idsInvitados.length) {
+        const { data, error: e } = await supabaseAdmin
+            .from('visitas_invitados').select('id_visita').in('id_invitado', idsInvitados);
+        if (e) throw new Error(e.message);
+        visitas = data;
+    }
+
+    return {
+        socio,
+        ids: {
+            membresias: socio.membresias.map((m) => m.id_membresia),
+            invitados: idsInvitados,
+            reservas: idsReservas,
+            pagos: socio.pagos.map((p) => p.id_pago),
+            cargos: socio.cargos.map((c) => c.id_cargo),
+            visitas: visitas.map((v) => v.id_visita)
+        },
+        resumen: {
+            pagos: socio.pagos.length,
+            reservas: idsReservas.length,
+            visitas: visitas.length,
+            cargos: socio.cargos.length,
+            invitados: idsInvitados.length
+        }
+    };
+}
+
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+
+function describirHistorial(r) {
+    const partes = [];
+    if (r.pagos) partes.push(plural(r.pagos, 'pago', 'pagos'));
+    if (r.reservas) partes.push(plural(r.reservas, 'reserva', 'reservas'));
+    if (r.visitas) partes.push(plural(r.visitas, 'visita de invitado', 'visitas de invitados'));
+    return partes;
+}
+
+// Elimina un socio. Se exige escribir su nombre completo como confirmación.
+// - Sin historial (pagos, reservas o visitas): se borra directamente.
+// - Con historial: solo si se pide `completo`, y entonces se borra también todo
+//   lo suyo (reservas, visitas, pagos, cargos...). Los reportes y totales del
+//   club dejan de incluirlo. Si no, se sugiere marcarlo como Inactivo.
+async function eliminarSocio(idUsuario, confirmacion, { completo = false } = {}) {
+    const usuario = await buscarUsuario(idUsuario);
+    if (!usuario) throw new ErrorHttp(404, 'Usuario no encontrado');
+    if (ROLES_ADMIN.includes(usuario.roles?.nombre)) {
+        throw new ErrorHttp(403, 'Solo se pueden eliminar cuentas de socios');
+    }
+    if (String(confirmacion ?? '').trim() !== usuario.nombre_completo) {
+        throw new ErrorHttp(400, 'Escriba el nombre completo del socio para confirmar');
+    }
+
+    const h = await historialSocio(idUsuario);
+
+    if (h) {
+        const historial = describirHistorial(h.resumen);
+        if (historial.length && !completo) {
+            throw new ErrorHttp(409,
+                `No se puede eliminar: tiene ${historial.join(', ')}. Márquelo como Inactivo o elimínelo con todo su historial`);
+        }
+
+        const { ids } = h;
+        const enLista = (tabla, columna, valores) => (valores.length
+            ? borrar(supabaseAdmin.from(tabla).delete().in(columna, valores))
+            : Promise.resolve());
+
+        // Reservas: servicios, historial y visitas ligadas
+        await enLista('visitas_invitados', 'id_reserva', ids.reservas);
+        await enLista('visitas_invitados', 'id_invitado', ids.invitados);
+        await enLista('reservas_servicios', 'id_reserva', ids.reservas);
+        await enLista('historial_reservas', 'id_reserva', ids.reservas);
+
+        // Pagos y cargos (los cargos de reservas apuntan a la reserva)
+        await enLista('detalle_pagos', 'id_pago', ids.pagos);
+        await enLista('detalle_pagos', 'id_cargo', ids.cargos);
+        await enLista('pagos', 'id_pago', ids.pagos);
+        await enLista('cargos', 'id_cargo', ids.cargos);
+        await enLista('reservas', 'id_reserva', ids.reservas);
+
+        // Invitados y membresía
+        await enLista('invitados', 'id_invitado', ids.invitados);
+        await enLista('beneficiarios', 'id_membresia', ids.membresias);
+        await enLista('historial_membresias', 'id_membresia', ids.membresias);
+        await enLista('membresias', 'id_membresia', ids.membresias);
+        await borrar(supabaseAdmin.from('socios').delete().eq('id_socio', h.socio.id_socio));
+    }
+
+    await borrar(supabaseAdmin.from('historial_reservas').delete().eq('id_usuario', idUsuario));
+    await borrar(supabaseAdmin.from('notificaciones').delete().eq('id_usuario', idUsuario));
+    await borrar(supabaseAdmin.from('usuarios').delete().eq('id_usuario', idUsuario));
+
+    const { error: errorAuth } = await supabaseAdmin.auth.admin.deleteUser(idUsuario);
+    if (errorAuth) console.error('Error al eliminar el usuario de Auth:', errorAuth.message);
+
+    return {
+        nombre: usuario.nombre_completo,
+        numero_socio: h?.socio.numero_socio ?? null,
+        conHistorial: Boolean(h && describirHistorial(h.resumen).length)
+    };
+}
+
 module.exports = {
     listarUsuarios,
     buscarUsuario,
@@ -262,5 +398,7 @@ module.exports = {
     modificarUsuario,
     cambiarEstado,
     crearAdministrador,
-    listarRolesAdministrativos
+    listarRolesAdministrativos,
+    eliminarSocio,
+    historialSocio
 };

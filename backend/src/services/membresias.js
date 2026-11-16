@@ -1,6 +1,7 @@
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const { ErrorHttp } = require('../utils/ErrorHttp');
 const { ahora: ahoraCR, sumarDias } = require('../utils/horario');
+const { cobrosPendientes } = require('./estadoCuenta');
 
 const ESTADOS_MEMBRESIA = ['Pendiente', 'Activa', 'Vencida', 'Suspendida', 'Cancelada'];
 
@@ -466,6 +467,91 @@ async function consultarMembresiaPorUsuario(idUsuario) {
     };
 }
 
+// -------------------- ACTIVACIÓN AL PAGAR --------------------
+
+const CONCEPTO_MEMBRESIA = /^(membres[ií]a|cuota de membres[ií]a)/i;
+
+function unAnoDespues(fecha) {
+    const [a, m, d] = fecha.split('-');
+    const dia = m === '02' && d === '29' ? '28' : d;
+    return `${Number(a) + 1}-${m}-${dia}`;
+}
+
+// Cuando se termina de pagar la membresía de un socio que se acaba de registrar,
+// la membresía pasa a Activa por un año desde hoy y la cuenta se activa para que
+// pueda iniciar sesión si ya no debe nada. Una cuenta Suspendida no se toca:
+// eso lo decide el admin.
+async function activarMembresiaPagada(idSocio, idUsuarioAdmin) {
+    const { data: membresia, error } = await supabaseAdmin
+        .from('membresias')
+        .select('id_membresia, estado, fecha_vencimiento, tipos_membresia(nombre)')
+        .eq('id_socio', idSocio)
+        .eq('estado', 'Pendiente')
+        .order('id_membresia', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!membresia) return null;
+
+    // Todos los cargos de membresía del socio deben estar pagados
+    const { data: cargos, error: e } = await supabaseAdmin
+        .from('cargos')
+        .select('concepto, estado')
+        .eq('id_socio', idSocio)
+        .is('id_reserva', null)
+        .not('estado', 'in', '("Pagado","Anulado")');
+
+    if (e) throw new Error(e.message);
+    if (cargos.some((c) => CONCEPTO_MEMBRESIA.test(c.concepto ?? ''))) return null;
+
+    const hoy = ahoraCR().fecha;
+    const vence = membresia.fecha_vencimiento && String(membresia.fecha_vencimiento) > hoy
+        ? membresia.fecha_vencimiento
+        : unAnoDespues(hoy);
+
+    const { error: eu } = await supabaseAdmin
+        .from('membresias')
+        .update({ estado: 'Activa', fecha_inicio: hoy, fecha_vencimiento: vence })
+        .eq('id_membresia', membresia.id_membresia)
+        .eq('estado', 'Pendiente');
+
+    if (eu) throw new Error(eu.message);
+
+    await registrarHistorial({
+        id_membresia: membresia.id_membresia,
+        estado_anterior: 'Pendiente',
+        estado_nuevo: 'Activa',
+        id_usuario: idUsuarioAdmin,
+        motivo: 'Pago de la membresía registrado'
+    });
+
+    const { data: socio } = await supabaseAdmin
+        .from('socios').select('id_usuario').eq('id_socio', idSocio).single();
+
+    // La cuenta se activa solo si ya no debe nada (misma regla que al activar a mano)
+    const pendientes = await cobrosPendientes(idSocio);
+    if (pendientes.cantidad > 0) {
+        return { membresia: membresia.tipos_membresia?.nombre ?? '', vence, cuentaActivada: false };
+    }
+
+    const { data: cuenta, error: ec } = await supabaseAdmin
+        .from('usuarios')
+        .update({ estado: 'Activo' })
+        .eq('id_usuario', socio.id_usuario)
+        .eq('estado', 'Inactivo')
+        .select('id_usuario')
+        .maybeSingle();
+
+    if (ec) throw new Error(ec.message);
+
+    return {
+        membresia: membresia.tipos_membresia?.nombre ?? '',
+        vence,
+        cuentaActivada: Boolean(cuenta)
+    };
+}
+
 module.exports = {
     ESTADOS_MEMBRESIA,
     listarTiposMembresia,
@@ -477,5 +563,6 @@ module.exports = {
     modificarMembresia,
     agregarBeneficiario,
     eliminarBeneficiario,
-    consultarMembresiaPorUsuario
+    consultarMembresiaPorUsuario,
+    activarMembresiaPagada
 };

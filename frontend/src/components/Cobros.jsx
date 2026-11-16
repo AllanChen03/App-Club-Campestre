@@ -131,18 +131,22 @@ export default function Cobros() {
     setError('');
     try {
       const monto_total = itemsPagos.reduce((acc, curr) => acc + curr.monto_aplicado, 0);
-      await registrarPagoAPI({
+      const respuesta = await registrarPagoAPI({
         id_socio: socioSeleccionado.id_socio || socioSeleccionado.id_usuario,
         monto_total,
         itemsPagos
       });
 
-      setAviso(`Pago procesado con éxito para ${socioSeleccionado.nombre_completo}`);
+      const activacion = respuesta?.activacion;
+      setAviso(`Pago procesado con éxito para ${socioSeleccionado.nombre_completo}` +
+        (activacion
+          ? `. Membresía ${activacion.membresia} activa${activacion.cuentaActivada ? ' y su cuenta ya puede iniciar sesión' : ''}`
+          : ''));
       setCargosSocio([]);
       setSocioSeleccionado(null);
       setBusquedaSocio('');
       await cargarDatosReales();
-      setTimeout(() => setAviso(''), 4000);
+      setTimeout(() => setAviso(''), activacion ? 8000 : 4000);
     } catch (err) {
       setError(err.message || 'Error al registrar el pago');
     } finally {

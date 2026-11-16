@@ -5,11 +5,14 @@ const {
     modificarUsuario,
     cambiarEstado,
     crearAdministrador,
-    listarRolesAdministrativos
+    listarRolesAdministrativos,
+    eliminarSocio: servicioEliminarSocio,
+    historialSocio
 } = require('../services/usuarios');
 
 const { recuperarContrasena } = require('../services/registro');
 const { cancelarReservasDelSocio } = require('../services/reservas');
+const { cobrosPendientes, colones } = require('../services/estadoCuenta');
 const { ROLES_ADMIN, ROL_SOCIO } = require('../utils/roles');
 
 const { responderError } = require('../utils/ErrorHttp');
@@ -150,11 +153,11 @@ async function suspenderCuenta(req, res) {
             });
         }
 
-        if (usuario.estado !== 'Activo') {
-            return res.status(400).json({ mensaje: 'Solo se pueden suspender usuarios activos' });
+        if (usuario.estado === 'Suspendido') {
+            return res.status(400).json({ mensaje: 'La cuenta ya está suspendida' });
         }
 
-        const resultado = await cambiarEstado(id, ['Activo'], 'Suspendido');
+        const resultado = await cambiarEstado(id, ['Activo', 'Inactivo'], 'Suspendido');
 
         if (!resultado) return res.status(409).json(ESTADO_CAMBIO);
 
@@ -185,6 +188,16 @@ async function activarCuenta(req, res) {
             return res.status(400).json({
                 mensaje: 'Solo se pueden activar cuentas suspendidas o inactivas'
             });
+        }
+
+        if (usuario.roles?.nombre === ROL_SOCIO) {
+            const pendientes = await cobrosPendientes(id);
+            if (pendientes.cantidad > 0) {
+                const n = pendientes.cantidad;
+                return res.status(409).json({
+                    mensaje: `No se puede activar: tiene ${n} ${n === 1 ? 'cobro pendiente' : 'cobros pendientes'} por ${colones(pendientes.saldo)}. Registre el pago en Cobros primero`
+                });
+            }
         }
 
         if (usuario.roles?.nombre === ROL_SOCIO && !membresiaVigente(usuario.socio)) {
@@ -318,6 +331,42 @@ async function rolesAdministrativos(req, res) {
     }
 }
 
+async function eliminarSocio(req, res) {
+    try {
+        const { id } = req.params;
+
+        if (!v.validarUUID(id)) return res.status(400).json(ID_INVALIDO);
+
+        if (esPropiaCuenta(req, id)) {
+            return res.status(403).json({ mensaje: 'No puedes eliminar tu propia cuenta' });
+        }
+
+        const { nombre, numero_socio: numero, conHistorial } = await servicioEliminarSocio(
+            id, req.body?.confirmacion, { completo: req.body?.completo === true });
+
+        return res.status(200).json({
+            mensaje: `Se eliminó el socio ${nombre}${numero ? ` (N.º ${numero})` : ''}` +
+                (conHistorial ? ' con todo su historial' : '')
+        });
+
+    } catch (error) {
+        return responderError(res, error, 'Error al eliminar socio',
+            'No se pudo eliminar el socio');
+    }
+}
+
+async function consultarHistorialSocio(req, res) {
+    try {
+        const { id } = req.params;
+        if (!v.validarUUID(id)) return res.status(400).json(ID_INVALIDO);
+        const h = await historialSocio(id);
+        return res.status(200).json({ resumen: h?.resumen ?? null });
+    } catch (error) {
+        return responderError(res, error, 'Error al consultar historial del socio',
+            'No se pudo consultar el historial del socio');
+    }
+}
+
 module.exports = {
     obtenerUsuarios,
     obtenerUsuario,
@@ -327,5 +376,7 @@ module.exports = {
     desactivarCuenta,
     registrarAdministrador,
     restablecerContrasenaSocio,
-    rolesAdministrativos
+    rolesAdministrativos,
+    eliminarSocio,
+    consultarHistorialSocio
 };

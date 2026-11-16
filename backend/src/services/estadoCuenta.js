@@ -181,4 +181,16 @@ async function estadoDePeriodo(idSocioOUsuario, periodo) {
     };
 }
 
-module.exports = { construirEstadoCuenta, estadoDePeriodo, nombrePeriodo };
+// Cargos con saldo por pagar (pendientes, parciales o vencidos; los anulados no cuentan)
+async function cobrosPendientes(idSocioOUsuario) {
+    const { cargos } = await construirEstadoCuenta(idSocioOUsuario);
+    const conSaldo = cargos.filter((c) => c.saldo > 0);
+    return {
+        cantidad: conSaldo.length,
+        saldo: conSaldo.reduce((t, c) => t + c.saldo, 0)
+    };
+}
+
+const colones = (n) => `₡${Math.round(Number(n)).toLocaleString('es-CR')}`;
+
+module.exports = { construirEstadoCuenta, estadoDePeriodo, nombrePeriodo, cobrosPendientes, colones };
