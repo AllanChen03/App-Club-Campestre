@@ -7,6 +7,14 @@ import {
   colorInstalacion, fechaConDia, hoy, lunesDe, nombreDia, nombreMes, plural, rangoHoras, sumarDias
 } from '../../utils/reservas';
 
+// Un solo filtro de estado a la vez
+const FILTROS_ESTADO = [
+  { id: 'vigentes', texto: 'Sin canceladas', incluye: (e) => e !== 'Cancelada' },
+  { id: 'pendientes', texto: 'Solo pendientes', incluye: (e) => e === 'Pendiente' },
+  { id: 'canceladas', texto: 'Solo canceladas', incluye: (e) => e === 'Cancelada' },
+  { id: 'todas', texto: 'Todas', incluye: () => true }
+];
+
 function tituloSemana(lunes) {
   const domingo = sumarDias(lunes, 6);
   const [, , d1] = lunes.split('-');
@@ -22,8 +30,7 @@ export default function Calendario({ instalaciones }) {
   const [lunes, setLunes] = useState(lunesDe(hoy()));
   const [dia, setDia] = useState(hoy());
   const [filtroInst, setFiltroInst] = useState(null);
-  const [soloPendientes, setSoloPendientes] = useState(false);
-  const [verCanceladas, setVerCanceladas] = useState(false);
+  const [filtroEstado, setFiltroEstado] = useState('vigentes');
   const [reservas, setReservas] = useState(null);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
@@ -56,11 +63,10 @@ export default function Calendario({ instalaciones }) {
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
 
   const visibles = useMemo(() => (reservas ?? []).filter((r) =>
-    (verCanceladas || r.estado !== 'Cancelada') &&
+    FILTROS_ESTADO.find((f) => f.id === filtroEstado).incluye(r.estado) &&
     (!dia || r.fecha_reserva === dia) &&
-    (!filtroInst || r.id_instalacion === filtroInst) &&
-    (!soloPendientes || r.estado === 'Pendiente')
-  ), [reservas, dia, filtroInst, soloPendientes, verCanceladas]);
+    (!filtroInst || r.id_instalacion === filtroInst)
+  ), [reservas, dia, filtroInst, filtroEstado]);
 
   const cerrarDetalle = useCallback(() => setAbierta(null), []);
   const cerrarBloqueo = useCallback(() => setBloqueando(false), []);
@@ -121,13 +127,19 @@ export default function Calendario({ instalaciones }) {
         </div>
       </div>
 
-      <div className="barra-herramientas">
-        <button type="button" className={`chip ${soloPendientes ? 'chip--activo' : ''}`} onClick={() => setSoloPendientes((v) => !v)}>
-          Solo pendientes
-        </button>
-        <button type="button" className={`chip ${verCanceladas ? 'chip--activo' : ''}`} onClick={() => setVerCanceladas((v) => !v)}>
-          Mostrar canceladas
-        </button>
+      <div className="barra-herramientas" role="radiogroup" aria-label="Estado de las reservas">
+        {FILTROS_ESTADO.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            role="radio"
+            aria-checked={filtroEstado === f.id}
+            className={`chip ${filtroEstado === f.id ? 'chip--activo' : ''}`}
+            onClick={() => setFiltroEstado(f.id)}
+          >
+            {f.texto}
+          </button>
+        ))}
       </div>
 
       <section className="tabla-tarjeta">
@@ -171,7 +183,7 @@ export default function Calendario({ instalaciones }) {
           {dia ? `Reservas del ${fechaConDia(dia).toLowerCase()}` : 'Reservas de la semana'}
           {' · '}
           {pendientes > 0 ? (
-            <button type="button" className="enlace-boton" onClick={() => { setSoloPendientes(true); setDia(null); }}>
+            <button type="button" className="enlace-boton" onClick={() => { setFiltroEstado('pendientes'); setDia(null); }}>
               {plural(pendientes, 'solicitud por confirmar', 'solicitudes por confirmar')} esta semana
             </button>
           ) : 'sin solicitudes por confirmar esta semana'}
