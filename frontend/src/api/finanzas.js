@@ -1,8 +1,12 @@
 import { descargarArchivo, solicitud } from './cliente';
 
-// Descargar el PDF del estado de cuenta (la ruta exige sesión)
-export const descargarPdfEstadoCuentaAPI = (idSocio) =>
-  descargarArchivo(`/api/finanzas/estado-cuenta/${idSocio}/pdf`, 'estado-de-cuenta.pdf');
+// Descargar el PDF del estado de cuenta (la ruta exige sesión).
+// Sin periodo es el actual; con periodo ('2026-10') es un mes anterior.
+export const descargarPdfEstadoCuentaAPI = (idSocio, periodo) =>
+  descargarArchivo(
+    `/api/finanzas/estado-cuenta/${idSocio}/pdf${periodo ? `?periodo=${periodo}` : ''}`,
+    `estado-de-cuenta${periodo ? `-${periodo}` : ''}.pdf`
+  );
 
 // Consultar el estado de cuenta de un socio (requiere autenticación)
 export const obtenerEstadoCuentaAPI = async (idSocio) => {

@@ -1,5 +1,7 @@
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const PDFDocument = require('pdfkit');
+const { construirEstadoCuenta, estadoDePeriodo } = require('../services/estadoCuenta');
+const { ErrorHttp } = require('../utils/ErrorHttp');
 
 // Definimos este alias para que todas las llamadas existentes a 'supabase' funcionen correctamente
 const supabase = supabaseAdmin;
@@ -21,65 +23,14 @@ const generarCargo = async (req, res) => {
   }
 };
 
-// 2. Consulta de estado de cuenta
-// 2. Consulta de estado de cuenta corregida para mapear id_usuario -> id_socio
+// 2. Consulta de estado de cuenta (acepta id_socio o id_usuario)
 const consultarEstadoCuenta = async (req, res) => {
   try {
-    const { id_socio: paramId } = req.params;
-
-    let idSocioReal = paramId;
-
-    // 1. Intentar buscar si el ID recibido corresponde al id_usuario de un socio
-    const { data: socioPorUsuario } = await supabase
-      .from('socios')
-      .select('id_socio')
-      .eq('id_usuario', paramId)
-      .maybeSingle();
-
-    if (socioPorUsuario) {
-      idSocioReal = socioPorUsuario.id_socio;
-    } else {
-      // 2. Si no, verificar si ya es un id_socio válido
-      const { data: socioPorId } = await supabase
-        .from('socios')
-        .select('id_socio')
-        .eq('id_socio', paramId)
-        .maybeSingle();
-      
-      if (socioPorId) {
-        idSocioReal = socioPorId.id_socio;
-      }
-    }
-
-    // Obtener cargos usando el id_socio correcto
-    const { data: cargos, error: errCargos } = await supabase
-      .from('cargos')
-      .select('*')
-      .eq('id_socio', idSocioReal)
-      .order('fecha_emision', { ascending: false });
-
-    if (errCargos) throw errCargos;
-
-    // Obtener pagos de forma segura
-    let pagos = [];
-    const { data: pagosData, error: errPagos } = await supabase
-      .from('pagos')
-      .select('*')
-      .eq('id_socio', idSocioReal);
-
-    if (!errPagos && pagosData) {
-      pagos = pagosData;
-    }
-
-    // Calcular saldo pendiente total
-    const saldoTotal = (cargos || [])
-      .filter(c => c.estado === 'Pendiente' || c.estado === 'Parcial' || c.estado === 'Vencido')
-      .reduce((acc, curr) => acc + Number(curr.monto || 0), 0);
-
-    res.json({ cargos: cargos || [], pagos, saldoTotal });
+    res.json(await construirEstadoCuenta(req.params.id_socio));
   } catch (error) {
+    if (error instanceof ErrorHttp) return res.status(error.status).json({ mensaje: error.message });
     console.error('Error en consultarEstadoCuenta:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ mensaje: 'No se pudo consultar el estado de cuenta' });
   }
 };
 
@@ -182,107 +133,114 @@ const obtenerMorosos = async (req, res) => {
   }
 };
 
-// 5. Generación de PDF de Estado de Cuenta Profesional
+// 5. Generación de PDF del estado de cuenta (periodo actual o ?periodo=YYYY-MM)
 const generarPdfEstadoCuenta = async (req, res) => {
   try {
-    const { id_socio } = req.params;
-
-    const { data: socio, error: errSocio } = await supabase
-      .from('socios')
-      .select('numero_socio, usuarios(nombre_completo, cedula)')
-      .eq('id_socio', id_socio)
-      .single();
-
-    if (errSocio) throw errSocio;
-
-    const { data: cargos, error: errCargos } = await supabase
-      .from('cargos')
-      .select('*')
-      .eq('id_socio', id_socio);
-
-    if (errCargos) throw errCargos;
-
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const estado = await estadoDePeriodo(req.params.id_socio, req.query.periodo);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=estado-cuenta-${id_socio}.pdf`);
-    doc.pipe(res);
-
-    // --- Encabezado ---
-    doc.fontSize(16).fillColor('#1f4d3d').text('Club Valle Alto', { continued: true });
-    doc.fontSize(10.5).fillColor('#555555').text(`Emitido el ${new Date().toLocaleDateString()}`, { align: 'right' });
-    doc.moveDown(0.5);
-
-    doc.fontSize(20).fillColor('#111827').text('Estado de cuenta, octubre 2026');
-    doc.moveDown(1);
-
-    // --- Información del Socio ---
-    doc.fontSize(11).fillColor('#333333');
-    doc.text(`Socio: ${socio.usuarios.nombre_completo}`);
-    doc.text(`Cédula: ${socio.usuarios.cedula}`);
-    doc.text(`Membresía: Familiar  •  Socio N.º ${socio.numero_socio}`);
-    doc.moveDown(1.5);
-
-    // --- Línea divisoria superior de tabla ---
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e5e7eb').lineWidth(1).stroke();
-    doc.moveDown(0.8);
-
-    // --- Cabecera de la Tabla ---
-    const startX = 50;
-    let currentY = doc.y;
-
-    doc.fontSize(10).fillColor('#6b7280');
-    doc.text('Concepto', startX, currentY, { width: 250, continued: false });
-    doc.text('Fecha límite', startX + 260, currentY, { width: 100, align: 'left' });
-    doc.text('Monto', startX + 370, currentY, { width: 125, align: 'right' });
-    
-    doc.moveDown(0.5);
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e5e7eb').lineWidth(1).stroke();
-    doc.moveDown(0.8);
-
-    // --- Filas de Cargos ---
-    let totalPendiente = 0;
-    if (cargos && cargos.length > 0) {
-      cargos.forEach(c => {
-        const rowY = doc.y;
-        totalPendiente += Number(c.monto);
-
-        doc.fontSize(10).fillColor('#111827');
-        doc.text(c.concepto || c.descripcion || 'Cargo', startX, rowY, { width: 250 });
-        doc.text(c.fecha_vencimiento || '25/10/2026', startX + 260, rowY, { width: 100 });
-        doc.text(`₡${Number(c.monto).toLocaleString()}`, startX + 370, rowY, { width: 125, align: 'right' });
-        doc.moveDown(1);
-      });
-    } else {
-      doc.fontSize(10).fillColor('#6b7280').text('No hay cargos registrados.', startX, doc.y);
-      doc.moveDown(1);
-    }
-
-    // --- Línea y Total Pendiente ---
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e5e7eb').lineWidth(1).stroke();
-    doc.moveDown(0.8);
-
-    const totalY = doc.y;
-    doc.fontSize(11).fillColor('#111827').font('Helvetica-Bold');
-    doc.text('Total pendiente', startX, totalY);
-    doc.text(`₡${totalPendiente.toLocaleString()}`, startX + 370, totalY, { width: 125, align: 'right' });
-    doc.font('Helvetica');
-
-    doc.moveDown(2);
-
-    // --- Pie de página informativo ---
-    doc.fontSize(9).fillColor('#6b7280').text(
-      'Los pagos se realizan en la administración del club. Este documento es un resumen informativo.',
-      startX,
-      doc.y,
-      { align: 'left', width: 450 }
-    );
-
-    doc.end();
+    res.setHeader('Content-Disposition',
+      `attachment; filename=estado-cuenta-${estado.socio.numero_socio}-${estado.periodo}.pdf`);
+    escribirPdfEstadoCuenta(estado, res);
   } catch (error) {
+    if (error instanceof ErrorHttp) return res.status(error.status).json({ mensaje: error.message });
     console.error('Error generando PDF:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ mensaje: 'No se pudo generar el PDF' });
   }
 };
+
+// La fuente incorporada del PDF no tiene el símbolo ₡, así que se usa el código de moneda
+const colones = (n) => `CRC ${Math.round(Number(n)).toLocaleString('en-US').replace(/,/g, ' ')}`;
+const fechaCorta = (f) => (f ? String(f).slice(0, 10).split('-').reverse().join('/') : '—');
+
+function escribirPdfEstadoCuenta(estado, salida) {
+  const doc = new PDFDocument({ margin: 50, size: 'A4' });
+  doc.pipe(salida);
+
+  const verde = '#1f4d3d';
+  const gris = '#6b7280';
+  const hoy = new Intl.DateTimeFormat('es-CR', { timeZone: 'America/Costa_Rica' }).format(new Date());
+
+  // Encabezado
+  const yTitulo = doc.y;
+  doc.fontSize(16).fillColor(verde).text('Club Valle Alto', 50, yTitulo);
+  doc.fontSize(10.5).fillColor(gris).text(`Emitido el ${hoy}`, 50, yTitulo + 4, { width: 495, align: 'right' });
+  doc.moveDown(1);
+  doc.x = 50;
+  doc.fontSize(20).fillColor('#111827').text(`Estado de cuenta, ${estado.nombre_periodo}`);
+  doc.moveDown(0.8);
+
+  // Socio
+  doc.fontSize(11).fillColor('#333333');
+  doc.text(`Socio: ${estado.socio.nombre_completo}`);
+  doc.text(`Cédula: ${estado.socio.cedula}`);
+  doc.text(`Membresía: ${estado.socio.membresia}  •  Socio N.º ${estado.socio.numero_socio}`);
+  doc.moveDown(1.2);
+
+  // Tabla
+  const col = { concepto: 50, limite: 280, estado: 370, monto: 445 };
+  const linea = () => {
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e5e7eb').lineWidth(1).stroke();
+    doc.moveDown(0.6);
+  };
+
+  linea();
+  let y = doc.y;
+  doc.fontSize(10).fillColor(gris);
+  doc.text('Concepto', col.concepto, y, { width: 220 });
+  doc.text('Fecha límite', col.limite, y, { width: 85 });
+  doc.text('Estado', col.estado, y, { width: 70 });
+  doc.text('Monto', col.monto, y, { width: 100, align: 'right' });
+  doc.moveDown(0.4);
+  linea();
+
+  if (estado.cargos.length === 0) {
+    doc.fontSize(10).fillColor(gris).text('No hay cargos en este periodo.', 50, doc.y);
+    doc.moveDown(1);
+  }
+
+  estado.cargos.forEach((c) => {
+    y = doc.y;
+    doc.fontSize(10).fillColor('#111827');
+    doc.text(c.concepto || c.descripcion || 'Cargo', col.concepto, y, { width: 220 });
+    const alto = doc.y - y;
+    doc.text(fechaCorta(c.fecha_vencimiento), col.limite, y, { width: 85 });
+    doc.fillColor(c.estado_actual === 'Pagado' ? '#1f6b45' : c.estado_actual === 'Vencido' ? '#b3261e' : '#8a5a00')
+      .text(c.estado_actual, col.estado, y, { width: 70 });
+    doc.fillColor('#111827').text(colones(c.monto), col.monto, y, { width: 100, align: 'right' });
+    doc.y = y + Math.max(alto, 14) + 8;
+  });
+
+  linea();
+
+  // Totales
+  const fila = (texto, valor, negrita = false) => {
+    y = doc.y;
+    doc.font(negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(negrita ? 11 : 10)
+      .fillColor(negrita ? '#111827' : '#333333');
+    doc.text(texto, 50, y, { width: 300 });
+    doc.text(valor, col.monto - 45, y, { width: 145, align: 'right' });
+    doc.y = y + (negrita ? 18 : 15);
+  };
+
+  fila('Total del periodo', colones(estado.resumen.facturado));
+  fila('Pagado', colones(estado.resumen.pagado));
+  if (estado.resumen.vencido > 0) fila('Vencido', colones(estado.resumen.vencido));
+  fila('Total pendiente', colones(estado.resumen.saldo), true);
+  doc.font('Helvetica');
+
+  if (estado.proxima_fecha_limite && estado.resumen.saldo > 0) {
+    doc.moveDown(0.4);
+    doc.fontSize(10).fillColor(gris).text(`Próxima fecha límite de pago: ${fechaCorta(estado.proxima_fecha_limite)}`, 50);
+  }
+
+  doc.moveDown(1.5);
+  doc.fontSize(9).fillColor(gris).text(
+    'Los pagos se realizan en la administración del club. Este documento es un resumen informativo.',
+    50, doc.y, { width: 450 }
+  );
+
+  doc.end();
+}
 
 // 6. Obtener resumen financiero general y estados de cuenta para el dashboard
 const obtenerResumenFinanciero = async (req, res) => {
