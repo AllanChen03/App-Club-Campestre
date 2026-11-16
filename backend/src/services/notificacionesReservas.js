@@ -3,7 +3,8 @@
 // registrado en `notificaciones`, para que aparezca en el historial del club.
 
 const { supabaseAdmin } = require('../config/supabaseAdmin');
-const { transporter, REMITENTE } = require('../config/correo');
+const { waitUntil } = require('@vercel/functions');
+const { enviarCorreo } = require('../config/correo');
 
 const PLANTILLAS = {
     confirmacion: 'Confirmación de reservas',
@@ -127,7 +128,7 @@ async function enviar(tipo, reserva, { motivo } = {}) {
 
     // 2) Enviar y 3) marcar el resultado
     try {
-        await transporter.sendMail({ from: REMITENTE, to: persona.correo, subject: asunto, text: contenido });
+        await enviarCorreo({ para: persona.correo, asunto, texto: contenido });
         await supabaseAdmin.from('notificaciones')
             .update({ estado: 'Enviada', fecha_envio: new Date().toISOString() })
             .eq('id_notificacion', registro.id_notificacion);
@@ -141,11 +142,15 @@ async function enviar(tipo, reserva, { motivo } = {}) {
 
 // Se llama sin esperar la respuesta: un correo que falla no debe deshacer
 // ni demorar la reserva. El error queda en consola y como "Fallida" en el historial.
+// En Vercel, waitUntil mantiene viva la función hasta que el correo termina de
+// enviarse aunque ya se haya respondido; en local no hace nada.
 function notificarReserva(tipo, reserva, extra = {}) {
     if (!PLANTILLAS[tipo] || !reserva) return Promise.resolve();
-    return enviar(tipo, reserva, extra).catch((e) => {
+    const envio = enviar(tipo, reserva, extra).catch((e) => {
         console.error(`Error al enviar correo de ${tipo} de reserva ${reserva.codigo}:`, e.message);
     });
+    waitUntil(envio);
+    return envio;
 }
 
 module.exports = { notificarReserva, rellenar };

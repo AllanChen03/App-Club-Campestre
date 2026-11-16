@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const { ErrorHttp } = require('../utils/ErrorHttp');
+const { ahora: ahoraCR, sumarDias } = require('../utils/horario');
 
 const ESTADOS_MEMBRESIA = ['Pendiente', 'Activa', 'Vencida', 'Suspendida', 'Cancelada'];
 
@@ -213,7 +214,7 @@ async function asignarMembresia({
     generar_cargo = false,
     id_usuario_admin
 }) {
-    const inicio = fecha_inicio || new Date().toISOString().slice(0, 10);
+    const inicio = fecha_inicio || ahoraCR().fecha;
 
     if (!fecha_vencimiento || fecha_vencimiento <= inicio) {
         throw new ErrorHttp(400, 'La fecha de renovación debe ser posterior a la fecha de inscripción');
@@ -280,15 +281,13 @@ async function asignarMembresia({
     });
 
     if (generar_cargo && Number(tipo.precio) > 0) {
-        const vencimientoCargo = new Date();
-        vencimientoCargo.setDate(vencimientoCargo.getDate() + 15);
 
         await supabaseAdmin.from('cargos').insert({
             id_socio: Number(id_socio),
             concepto: `Cuota de membresía - ${tipo.nombre}`,
             descripcion: `Membresía #${nueva.id_membresia}`,
             monto: Number(tipo.precio),
-            fecha_vencimiento: vencimientoCargo.toISOString().slice(0, 10),
+            fecha_vencimiento: sumarDias(ahoraCR().fecha, 15),
             estado: 'Pendiente'
         });
     }

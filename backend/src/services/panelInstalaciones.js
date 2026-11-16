@@ -1,4 +1,5 @@
 const PDFDocument = require('pdfkit');
+require('../utils/pdfFuentes'); // incluye las fuentes de pdfkit al publicar en Vercel
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const h = require('../utils/horario');
 const { listarInstalaciones } = require('./instalaciones');

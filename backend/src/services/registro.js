@@ -3,7 +3,8 @@ const { supabaseAuth } = require('../config/supabaseAuth');
 const { ErrorHttp } = require('../utils/ErrorHttp');
 const intentosLogin = require('./intentosLogin');
 
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+// Si FRONTEND_URL trae varias direcciones, los enlaces de los correos usan la primera
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim().replace(/\/$/, '');
 
 async function registrarUsuario(datos) {
 

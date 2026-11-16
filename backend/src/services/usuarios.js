@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const { ErrorHttp } = require('../utils/ErrorHttp');
+const { ahora: ahoraCR } = require('../utils/horario');
 const { ROLES_ADMIN } = require('../utils/roles');
 
 const CAMPOS_USUARIO = `
@@ -135,7 +136,7 @@ function membresiaVigente(socio) {
     if (!m || m.estado !== 'Activa') return false;
     if (!m.fecha_vencimiento) return true;
 
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = ahoraCR().fecha; // fecha de Costa Rica, no UTC
     return String(m.fecha_vencimiento).slice(0, 10) >= hoy;
 }
 

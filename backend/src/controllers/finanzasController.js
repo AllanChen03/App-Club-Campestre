@@ -1,7 +1,9 @@
 const { supabaseAdmin } = require('../config/supabaseAdmin');
 const PDFDocument = require('pdfkit');
+require('../utils/pdfFuentes'); // incluye las fuentes de pdfkit al publicar en Vercel
 const { construirEstadoCuenta, estadoDePeriodo } = require('../services/estadoCuenta');
 const { ErrorHttp } = require('../utils/ErrorHttp');
+const { ahora: ahoraCR } = require('../utils/horario');
 
 // Definimos este alias para que todas las llamadas existentes a 'supabase' funcionen correctamente
 const supabase = supabaseAdmin;
@@ -111,7 +113,7 @@ const registrarPagoManual = async (req, res) => {
 // 4. Control de morosidad
 const obtenerMorosos = async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = ahoraCR().fecha; // fecha de Costa Rica, no UTC
 
     const { data, error } = await supabase
       .from('cargos')
@@ -264,7 +266,7 @@ const obtenerResumenFinanciero = async (req, res) => {
     let pendiente = 0;
     let vencido = 0;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = ahoraCR().fecha; // fecha de Costa Rica, no UTC
 
     const listaEstados = (cargos || []).map(c => {
       const monto = Number(c.monto) || 0;
