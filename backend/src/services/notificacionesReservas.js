@@ -1,4 +1,4 @@
-// Avisos por correo de reservas: confirmación, modificación y cancelación.
+// Avisos por correo de reservas: recibida, confirmación, modificación y cancelación.
 // Usa las plantillas editables de la tabla `plantillas` y deja cada envío
 // registrado en `notificaciones`, para que aparezca en el historial del club.
 
@@ -7,6 +7,7 @@ const { waitUntil } = require('@vercel/functions');
 const { enviarCorreo } = require('../config/correo');
 
 const PLANTILLAS = {
+    recepcion: 'Reserva recibida',
     confirmacion: 'Confirmación de reservas',
     modificacion: 'Modificación de reserva',
     cancelacion: 'Cancelación de reserva'
@@ -14,6 +15,10 @@ const PLANTILLAS = {
 
 // Texto de respaldo si la plantilla no existe o está inactiva
 const RESPALDO = {
+    recepcion: {
+        asunto: 'Reserva recibida - Club Valle Alto',
+        contenido: 'Estimado/a {nombre},\n\nRecibimos su solicitud de reserva {codigo}. Quedó pendiente hasta que el club la confirme; le avisaremos por este medio.\n\nInstalación: {instalacion}\nFecha: {fecha}\nHorario: {hora_inicio} - {hora_fin}\nPersonas: {personas}\n\nClub Valle Alto.'
+    },
     confirmacion: {
         asunto: 'Reserva confirmada - Club Valle Alto',
         contenido: 'Estimado/a {nombre},\n\nSu reserva {codigo} ha sido confirmada.\n\nInstalación: {instalacion}\nFecha: {fecha}\nHorario: {hora_inicio} - {hora_fin}\nPersonas: {personas}\n\nClub Valle Alto.'
@@ -89,7 +94,10 @@ async function enviar(tipo, reserva, { motivo } = {}) {
     };
 
     const base = plantilla ?? RESPALDO[tipo];
-    const asunto = rellenar(base.asunto, variables);
+    // El código va en el asunto para que cada reserva quede en su propio hilo
+    // (Gmail agrupa en una sola conversación los correos con el mismo asunto)
+    let asunto = rellenar(base.asunto, variables);
+    if (reserva.codigo && !asunto.includes(reserva.codigo)) asunto = `${asunto} (${reserva.codigo})`;
     let contenido = rellenar(base.contenido, variables).replace(/\r\n/g, '\n');
 
     // Datos que no todas las plantillas incluyen pero el socio necesita saber
