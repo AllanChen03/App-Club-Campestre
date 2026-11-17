@@ -525,7 +525,9 @@ async function crearReserva(socio, body) {
     await guardarVisitas(data.id_reserva, s, s.id_instalacion);
     await registrarHistorial(data.id_reserva, null, 'Pendiente', socio.id_usuario, 'Solicitud del socio');
 
-    return buscarReserva(data.id_reserva, { detalle: true });
+    const reserva = await buscarReserva(data.id_reserva, { detalle: true });
+    notificarReserva('recepcion', reserva);
+    return reserva;
 }
 
 // Modificación por el socio (vuelve a Pendiente) o por un administrador
