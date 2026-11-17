@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? '';
+// Dirección del backend publicado (sin la barra final). En local queda vacía y
+// Vite reenvía /api al backend.
+const BASE_URL = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '');
 const CLAVE_SESION = 'cva_sesion';
 
 // Error con el código HTTP y los datos que devuelve el backend
